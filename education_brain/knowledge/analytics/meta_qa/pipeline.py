@@ -171,7 +171,7 @@ def _error_response(question: str, *, code: str, message: str, started: float, s
 
 
 def _requires_data_qa_response(question: str, *, started: float) -> dict[str, Any]:
-    answer = "这个问题需要查询真实统计值，请切换到“数据问数”模式。"
+    answer = "这个问题需要查询真实统计值，请切换到“数据分析”模式。"
     return {
         "ok": True,
         "result_type": "meta_answer",

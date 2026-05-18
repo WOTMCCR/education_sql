@@ -2,7 +2,7 @@ import { NavLink, Outlet } from 'react-router'
 import { BarChart3, MessageSquare } from 'lucide-react'
 
 const navItems = [
-  { label: '数据问数', path: '/', icon: MessageSquare },
+  { label: '数据分析', path: '/', icon: MessageSquare },
 ]
 
 export function Layout() {
@@ -11,7 +11,7 @@ export function Layout() {
       <aside className="hidden w-56 border-r border-border bg-sidebar flex-col shrink-0 md:flex">
         <div className="p-4 border-b border-border flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-primary" />
-          <span className="text-primary">教育经营问数</span>
+          <span className="text-primary">教育经营分析</span>
         </div>
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {navItems.map(item => (

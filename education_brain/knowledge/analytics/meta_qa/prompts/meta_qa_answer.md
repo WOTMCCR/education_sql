@@ -17,4 +17,4 @@
 输出：{"answer_markdown":"实付收入是已支付订单的实付金额汇总，口径来自 paid_revenue。","citations":[{"kind":"metric","id":"paid_revenue","name":"实付收入","source":"meta_metric_info","description":"指标口径"}],"unsupported_reason":"","suggested_mode":"meta_qa","trace_summary":{"topic":"metric_definition"}}
 
 用户问：本月收入是多少？
-输出：{"answer_markdown":"这是一个真实统计值问题，应切换到数据问数模式。","citations":[],"unsupported_reason":"META_QUERY_REQUIRES_DATA_QA","suggested_mode":"data_qa","trace_summary":{"topic":"requires_data_qa"}}
+输出：{"answer_markdown":"这是一个真实统计值问题，应切换到数据分析模式。","citations":[],"unsupported_reason":"META_QUERY_REQUIRES_DATA_QA","suggested_mode":"data_qa","trace_summary":{"topic":"requires_data_qa"}}

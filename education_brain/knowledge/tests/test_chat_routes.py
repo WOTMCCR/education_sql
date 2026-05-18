@@ -120,6 +120,37 @@ def test_chat_query_meta_qa_wraps_markdown_citations_and_trace(monkeypatch):
     assert saved_messages[1].trace["stages"][0]["name"] == "meta_qa_llm"
 
 
+def test_chat_query_auto_routes_data_discovery_to_meta_qa(monkeypatch):
+    saved_messages = []
+    monkeypatch.setattr(chat_route.asyncio, "to_thread", _inline_to_thread)
+    monkeypatch.setattr(chat_route, "save_message", lambda message: saved_messages.append(message))
+    monkeypatch.setattr(chat_route, "run_data_qa", lambda query, session_id=None: (_ for _ in ()).throw(AssertionError("should not run data qa")))
+    monkeypatch.setattr(
+        chat_route,
+        "run_meta_qa",
+        lambda query, session_id=None: {
+            "result_type": "meta_answer",
+            "mode": "meta_qa",
+            "answer": "当前可用的表包括订单主表和校区表。",
+            "citations": [],
+            "blocks": [{"type": "markdown", "content": "当前可用的表包括订单主表和校区表。"}],
+            "trace": {"stages": [{"name": "meta_qa_llm", "status": "ok"}]},
+        },
+    )
+
+    payload = asyncio.run(
+        chat_query(ChatRequest(query="现在有哪些表？", mode="data_qa", session_id="s1"))
+    ).model_dump()
+
+    assert payload["mode"] == "meta_qa"
+    assert payload["intent"] == "meta_qa"
+    assert payload["result_type"] == "meta_answer"
+    assert payload["blocks"][0]["type"] == "markdown"
+    assert saved_messages[0].role == "user"
+    assert saved_messages[0].mode == "meta_qa"
+    assert saved_messages[1].mode == "meta_qa"
+
+
 def test_chat_query_requires_explicit_mode():
     client = TestClient(app)
 

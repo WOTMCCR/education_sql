@@ -143,12 +143,12 @@ function normalizeMode(value: any): ChatMode {
 function mockMetaQaChatResponse(question: string): ChatQueryResponse {
   const trimmedQuestion = question.trim()
   const answer = [
-    `### ${trimmedQuestion || '数据说明'}`,
+    `### ${trimmedQuestion || '数据介绍'}`,
     '',
     '实付收入指已支付成功订单的实收金额汇总，通常排除未支付、已取消或无效订单。',
     '',
     '- 可用于收入趋势、校区排名和课程收入分析。',
-    '- 如果要查询具体金额或排名，请切换到数据问数模式。',
+    '- 如果要查询具体金额或排名，请切换到数据分析模式。',
   ].join('\n')
   const citations: MetaCitation[] = [
     {

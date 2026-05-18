@@ -73,7 +73,7 @@ export function ChatPage() {
       const failedMsg: ChatMessage = {
         task_id: '',
         role: 'assistant',
-        content: chatMode === 'meta_qa' ? '数据说明暂时不可用，请稍后重试。' : '数据问数暂时不可用，请稍后重试。',
+        content: chatMode === 'meta_qa' ? '数据介绍暂时不可用，请稍后重试。' : '数据分析暂时不可用，请稍后重试。',
         intent: chatMode,
         mode: chatMode,
         result_type: chatMode === 'meta_qa' ? 'meta_answer' : 'data_qa_result',
@@ -143,7 +143,7 @@ export function ChatPage() {
                   </div>
                   <div className="flex-1 max-w-2xl">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> {chatMode === 'meta_qa' ? '正在生成数据说明' : '正在生成问数结果'}
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> {chatMode === 'meta_qa' ? '正在生成数据介绍' : '正在生成数据分析'}
                     </div>
                   </div>
                 </div>
@@ -165,7 +165,7 @@ export function ChatPage() {
                 }`}
               >
                 <BarChart3 className="h-3.5 w-3.5" />
-                数据问数
+                数据分析
               </button>
               <button
                 type="button"
@@ -175,14 +175,14 @@ export function ChatPage() {
                 }`}
               >
                 <BookOpenText className="h-3.5 w-3.5" />
-                数据说明
+                数据介绍
               </button>
             </div>
             <div className="flex gap-2">
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder={chatMode === 'meta_qa' ? '例如：实付收入怎么算？' : '例如：最近30天收入趋势如何？'}
+              placeholder={chatMode === 'meta_qa' ? '例如：现在有哪些表？' : '例如：最近30天收入趋势如何？'}
               disabled={submitting}
               className="flex-1 px-4 py-2.5 border border-border rounded-lg bg-input-background text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             />
@@ -248,7 +248,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 function DataQaLoading() {
   return (
     <div className="rounded-lg border border-border bg-background px-3 py-3 text-xs text-muted-foreground">
-      正在加载数据问数视图...
+      正在加载数据分析视图...
     </div>
   )
 }
