@@ -67,6 +67,59 @@ def test_chat_query_data_qa_wraps_result_and_saves_blocks(monkeypatch):
     assert saved_messages[1].blocks[1]["data"]["explain"]["sql"]
 
 
+def test_chat_query_meta_qa_wraps_markdown_citations_and_trace(monkeypatch):
+    saved_messages = []
+    monkeypatch.setattr(chat_route.asyncio, "to_thread", _inline_to_thread)
+    monkeypatch.setattr(chat_route, "save_message", lambda message: saved_messages.append(message))
+    monkeypatch.setattr(
+        chat_route,
+        "run_meta_qa",
+        lambda query, session_id=None: {
+            "result_type": "meta_answer",
+            "mode": "meta_qa",
+            "answer": "实付收入按已支付订单实付金额汇总。",
+            "citations": [
+                {
+                    "kind": "metric",
+                    "id": "paid_revenue",
+                    "name": "实付收入",
+                    "source": "meta_metric_info",
+                    "description": "已支付订单的实付金额",
+                }
+            ],
+            "blocks": [
+                {"type": "markdown", "content": "实付收入按已支付订单实付金额汇总。"},
+                {
+                    "type": "meta_citations",
+                    "data": [
+                        {
+                            "kind": "metric",
+                            "id": "paid_revenue",
+                            "name": "实付收入",
+                            "source": "meta_metric_info",
+                            "description": "已支付订单的实付金额",
+                        }
+                    ],
+                },
+            ],
+            "trace": {"stages": [{"name": "meta_qa_llm", "status": "ok"}]},
+        },
+    )
+
+    payload = asyncio.run(
+        chat_query(ChatRequest(query="实付收入怎么算？", mode="meta_qa", session_id="s1"))
+    ).model_dump()
+
+    assert payload["mode"] == "meta_qa"
+    assert payload["intent"] == "meta_qa"
+    assert payload["result_type"] == "meta_answer"
+    assert payload["blocks"][1]["type"] == "meta_citations"
+    assert payload["trace"]["stages"][0]["name"] == "meta_qa_llm"
+    assert saved_messages[1].mode == "meta_qa"
+    assert saved_messages[1].blocks[1]["type"] == "meta_citations"
+    assert saved_messages[1].trace["stages"][0]["name"] == "meta_qa_llm"
+
+
 def test_chat_query_requires_explicit_mode():
     client = TestClient(app)
 

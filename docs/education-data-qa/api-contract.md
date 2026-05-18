@@ -433,7 +433,7 @@ Response: `DataQaResult`
 
 ### 4.1 POST /chat/query
 
-聊天入口使用显式 `mode`。Iteration 04 只支持 `mode=data_qa`；Iteration 05B 扩展 `mode=meta_qa`。旧 `knowledge`/RAG 模式不保留兼容。
+聊天入口使用显式 `mode`。Iteration 04 支持 `mode=data_qa`；Iteration 05B 已扩展 `mode=meta_qa`。旧 `knowledge`/RAG 模式不保留兼容。
 
 Request:
 
@@ -450,7 +450,7 @@ Request:
 | 字段 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---:|---|---|
 | `query` | string | 是 | - | 用户输入 |
-| `mode` | `'data_qa'` | 是 | - | 显式模式开关；不传或未知值返回 400 |
+| `mode` | `'data_qa' \| 'meta_qa'` | 是 | - | 显式模式开关；不传或未知值返回 400 |
 | `session_id` | string | 否 | 后端生成 | 聊天会话 ID |
 
 Response:
@@ -458,22 +458,27 @@ Response:
 ```ts
 type ChatResponse = {
   task_id: string
-  intent: string
-  result_type: 'answer' | 'search_result' | 'data_qa_result' | string
-  mode: 'data_qa'
+  intent: 'data_qa' | 'meta_qa'
+  result_type: 'data_qa_result' | 'meta_answer' | 'meta_error' | string
+  mode: 'data_qa' | 'meta_qa'
   items: unknown[]
   summary: string
   answer: string
-  citations: unknown[]
+  citations: MetaCitation[]
   blocks?: ChatBlock[]
+  trace?: {
+    stages: Array<Record<string, unknown>>
+    durationMs?: number
+  }
 }
 
 type ChatBlock =
   | { type: 'markdown'; content: string }
   | { type: 'data_qa_result'; data: DataQaResult }
+  | { type: 'meta_citations'; data: MetaCitation[] }
 ```
 
-Iteration 05 planned extension:
+Meta QA citation：
 
 ```ts
 type ProductChatMode = 'data_qa' | 'meta_qa'
@@ -490,17 +495,7 @@ type MetaCitation = {
   id: string
   name: string
   source: MetaCitationSource
-}
-
-type Iter05ChatBlock =
-  | { type: 'markdown'; content: string }
-  | { type: 'data_qa_result'; data: DataQaResult }
-  | { type: 'meta_citations'; data: MetaCitation[] }
-
-type Iter05ChatResponse = Omit<ChatResponse, 'mode' | 'result_type' | 'blocks'> & {
-  mode: ProductChatMode
-  result_type: 'data_qa_result' | 'meta_answer' | string
-  blocks?: Iter05ChatBlock[]
+  description?: string
 }
 ```
 
@@ -510,6 +505,7 @@ Iteration 05 mode rules:
 - `knowledge` 不作为兼容 mode 保留；传入 `knowledge` 或未知 mode 返回 400。
 - `meta_qa` 只返回 markdown 解释和 `meta_citations`，不返回 SQL、不执行 SQL、不返回 `DataQaResult.visual`。
 - `meta_citations[].source` 必须来自约定枚举，`kind=value` 归属到 `source="meta_dimension_info"`。
+- `meta_qa` trace 必须包含 `meta_qa_llm` 的调用证据，例如 `promptName`、`promptHash`、`inputSummary`、`outputSummary`、`usage`；不得向前端暴露完整 system prompt 或完整 raw response。
 
 `mode=data_qa` 成功响应示例：
 
@@ -574,6 +570,58 @@ Iteration 05 mode rules:
 }
 ```
 
+`mode=meta_qa` 成功响应示例：
+
+```json
+{
+  "task_id": "chat_task_meta_001",
+  "intent": "meta_qa",
+  "result_type": "meta_answer",
+  "mode": "meta_qa",
+  "items": [],
+  "summary": "实付收入是已支付订单的实付金额汇总。",
+  "answer": "实付收入是已支付订单的实付金额汇总。",
+  "citations": [
+    {
+      "kind": "metric",
+      "id": "paid_revenue",
+      "name": "实付收入",
+      "source": "meta_metric_info",
+      "description": "已支付订单的实付金额"
+    }
+  ],
+  "blocks": [
+    { "type": "markdown", "content": "实付收入是已支付订单的实付金额汇总。" },
+    {
+      "type": "meta_citations",
+      "data": [
+        {
+          "kind": "metric",
+          "id": "paid_revenue",
+          "name": "实付收入",
+          "source": "meta_metric_info",
+          "description": "已支付订单的实付金额"
+        }
+      ]
+    }
+  ],
+  "trace": {
+    "stages": [
+      {
+        "name": "meta_qa_llm",
+        "status": "ok",
+        "llm_called": true,
+        "promptName": "meta_qa_answer.md",
+        "promptHash": "prompt-hash",
+        "inputSummary": { "metrics": 1, "columns": 1 },
+        "outputSummary": { "citationCount": 1 },
+        "usage": { "total_tokens": 100 }
+      }
+    ]
+  }
+}
+```
+
 ### 4.2 GET /chat/history
 
 Request:
@@ -617,6 +665,14 @@ type ChatMessage = {
 - 完整 `DataQaResult.trace`
 - `warnings` / `error`
 
+`mode=meta_qa` 的 assistant 历史消息必须保留：
+
+- `mode: "meta_qa"`
+- `result_type: "meta_answer"`
+- `blocks[].type === "markdown"`
+- `blocks[].type === "meta_citations"`
+- `trace.stages[].name === "meta_qa_llm"`（统计值转问数提示除外）
+
 ## 5. 前端 mock 建议
 
 前端可以先 mock 两层数据：
@@ -643,23 +699,27 @@ education_brain_front/src/app/components/data-qa-result.tsx
 
 前端不需要等待真实 NL2SQL 完成，可以用本文件 3.2、3.3、3.4、3.5 的 JSON 作为 mock fixture。
 
-## 6. 与当前实现的差异
+## 6. 当前实现状态
 
 当前仓库状态：
 
 - 已实现 `/analytics/health`、`/analytics/meta/metrics`、`/analytics/meta/columns`、`/analytics/meta/values`。
-- 当前 `ChatRequest` 尚未包含 `mode`。
-- 当前 `ChatResponse` / `ChatMessage` 尚未包含 `blocks`。
-- 旧前端聊天曾使用 `/chat/query/stream` + SSE；Iteration 04 后应切换为同步 `POST /chat/query mode=data_qa`。
+- 已实现同步 `POST /chat/query`，并要求显式 `mode=data_qa` 或 `mode=meta_qa`。
+- 已实现 `ChatResponse` / `ChatMessage` 的 `mode`、`blocks`、`trace` 字段。
+- `mode=data_qa` 返回 `data_qa_result` block，保留 SQL、口径、visual、trace，并写入 MongoDB 历史。
+- `mode=meta_qa` 返回 markdown + `meta_citations` blocks，保留脱敏 LLM trace，不执行 SQL。
+- 旧 `/chat/query/stream`、`/chat/stream/{task_id}`、文档/RAG ingestion/search 路由已从当前产品入口移除。
 
-因此本契约是 Iteration 02-04 的目标接口，不表示当前后端已经全部可用。
+因此本契约是 Iteration 02-05B 的已实现目标接口。
 
 ## 7. 验收对齐
 
-后续 smoke test 应至少覆盖：
+smoke test 至少覆盖：
 
 - `POST /analytics/query` 三个成功问题：stat、line、bar。
 - SQL 注入或多语句输入返回结构化 `error`，且 `execute_sql` 为 `skipped`。
 - `POST /chat/query mode=data_qa` 返回 `result_type=data_qa_result` 和 `data_qa_result` block。
 - `GET /chat/history` 能恢复完整 `blocks` 和 SQL/口径/trace。
+- `POST /chat/query mode=meta_qa` 返回 `result_type=meta_answer`、markdown block、`meta_citations` block 和脱敏 `meta_qa_llm` trace。
+- `mode=meta_qa` 统计值问题必须路由提示到 `data_qa`，不返回 SQL 或 visual。
 - `visual.columns[].key` 与 `visual.rows[]` 对齐。

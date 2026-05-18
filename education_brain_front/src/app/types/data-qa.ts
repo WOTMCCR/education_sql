@@ -1,3 +1,4 @@
+export type ProductChatMode = 'data_qa' | 'meta_qa'
 export type DataQaMode = 'data_qa'
 
 export type DataQaAnalysisType = 'single_metric' | 'trend' | 'ranking' | 'comparison' | 'detail'
@@ -148,15 +149,41 @@ export interface DataQaResult {
   error?: DataQaError
 }
 
+export type MetaCitationSource =
+  | 'meta_metric_info'
+  | 'meta_column_info'
+  | 'meta_table_info'
+  | 'meta_dimension_info'
+  | 'meta_join_info'
+  | (string & {})
+
+export type MetaCitationKind =
+  | 'metric'
+  | 'column'
+  | 'table'
+  | 'dimension'
+  | 'join'
+  | 'value'
+  | (string & {})
+
+export interface MetaCitation {
+  kind: MetaCitationKind
+  id: string
+  name: string
+  source: MetaCitationSource
+  description?: string
+}
+
 export type ChatBlock =
   | { type: 'markdown'; content: string }
   | { type: 'data_qa_result'; data: DataQaResult }
+  | { type: 'meta_citations'; data: MetaCitation[] }
 
 export interface DataQaChatResponse {
   task_id: string
   intent: string
   result_type: 'answer' | 'search_result' | 'data_qa_result' | (string & {})
-  mode?: 'data_qa'
+  mode?: ProductChatMode
   items: unknown[]
   summary: string
   answer: string

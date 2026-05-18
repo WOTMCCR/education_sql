@@ -1,9 +1,9 @@
 import { lazy, Suspense, useState, useRef, useEffect, useCallback } from 'react'
 import { chatQuery, getChatHistory } from '../api/chat'
-import type { ChatMessage, Citation } from '../types'
+import type { ChatMessage, ChatMode, Citation, MetaCitation } from '../types'
 import { StateView } from '../components/empty-state'
 import { MarkdownContent } from '../components/markdown-content'
-import { Send, Bot, User, FileText, Plus, MessageSquare, Loader2, BarChart3 } from 'lucide-react'
+import { Send, Bot, User, FileText, Plus, MessageSquare, Loader2, BarChart3, BookOpenText } from 'lucide-react'
 
 const DataQaResultView = lazy(() =>
   import('../components/data-qa-result').then((module) => ({
@@ -19,6 +19,7 @@ export function ChatPage() {
   const [activeSession, setActiveSession] = useState(sessions[0])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [chatMode, setChatMode] = useState<ChatMode>('data_qa')
   const [submitting, setSubmitting] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -44,22 +45,22 @@ export function ChatPage() {
     setInput('')
 
     const userMsg: ChatMessage = {
-      task_id: '', role: 'user', content: question, intent: 'data_qa',
-      mode: 'data_qa',
+      task_id: '', role: 'user', content: question, intent: chatMode,
+      mode: chatMode,
       created_at: new Date().toISOString(), citations: [],
     }
     setMessages(prev => [...prev, userMsg])
 
     setSubmitting(true)
     try {
-      const res = await chatQuery(activeSession, question)
+      const res = await chatQuery(activeSession, question, chatMode)
       const assistantMsg: ChatMessage = {
         task_id: res.task_id,
         role: 'assistant',
         content: res.answer || res.summary || '',
-        intent: 'data_qa',
-        mode: 'data_qa',
-        result_type: res.result_type || 'data_qa_result',
+        intent: res.intent || chatMode,
+        mode: res.mode || chatMode,
+        result_type: res.result_type || (chatMode === 'meta_qa' ? 'meta_answer' : 'data_qa_result'),
         items: res.items || [],
         summary: res.summary || '',
         answer: res.answer || '',
@@ -72,10 +73,10 @@ export function ChatPage() {
       const failedMsg: ChatMessage = {
         task_id: '',
         role: 'assistant',
-        content: '数据问数暂时不可用，请稍后重试。',
-        intent: 'data_qa',
-        mode: 'data_qa',
-        result_type: 'data_qa_result',
+        content: chatMode === 'meta_qa' ? '数据说明暂时不可用，请稍后重试。' : '数据问数暂时不可用，请稍后重试。',
+        intent: chatMode,
+        mode: chatMode,
+        result_type: chatMode === 'meta_qa' ? 'meta_answer' : 'data_qa_result',
         created_at: new Date().toISOString(),
         citations: [],
       }
@@ -142,7 +143,7 @@ export function ChatPage() {
                   </div>
                   <div className="flex-1 max-w-2xl">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> 正在生成问数结果
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" /> {chatMode === 'meta_qa' ? '正在生成数据说明' : '正在生成问数结果'}
                     </div>
                   </div>
                 </div>
@@ -158,17 +159,30 @@ export function ChatPage() {
             <div className="inline-flex rounded-md border border-border bg-muted/30 p-1">
               <button
                 type="button"
-                className="flex items-center gap-1.5 rounded bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm"
+                onClick={() => setChatMode('data_qa')}
+                className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs transition-colors ${
+                  chatMode === 'data_qa' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
                 <BarChart3 className="h-3.5 w-3.5" />
                 数据问数
+              </button>
+              <button
+                type="button"
+                onClick={() => setChatMode('meta_qa')}
+                className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs transition-colors ${
+                  chatMode === 'meta_qa' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <BookOpenText className="h-3.5 w-3.5" />
+                数据说明
               </button>
             </div>
             <div className="flex gap-2">
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="例如：最近30天收入趋势如何？"
+              placeholder={chatMode === 'meta_qa' ? '例如：实付收入怎么算？' : '例如：最近30天收入趋势如何？'}
               disabled={submitting}
               className="flex-1 px-4 py-2.5 border border-border rounded-lg bg-input-background text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             />
@@ -190,6 +204,8 @@ export function ChatPage() {
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
   const dataQaBlocks = message.blocks?.filter(block => block.type === 'data_qa_result') || []
+  const markdownBlocks = message.blocks?.filter(block => block.type === 'markdown') || []
+  const metaCitationBlocks = message.blocks?.filter(block => block.type === 'meta_citations') || []
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isUser ? 'bg-accent' : 'bg-primary'}`}>
@@ -203,6 +219,19 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 <DataQaResultView key={index} result={block.data} />
               ))}
             </Suspense>
+          </div>
+        ) : (markdownBlocks.length > 0 || metaCitationBlocks.length > 0) && !isUser ? (
+          <div className="space-y-2 text-left">
+            {markdownBlocks.length > 0 ? (
+              <div className="rounded-lg bg-muted/50 p-3 text-sm">
+                {markdownBlocks.map((block, index) => (
+                  <MarkdownContent key={index} content={block.content} />
+                ))}
+              </div>
+            ) : null}
+            {metaCitationBlocks.map((block, index) => (
+              <MetaCitationList key={index} citations={block.data} />
+            ))}
           </div>
         ) : (
           <div className={`inline-block rounded-lg p-3 text-sm ${isUser ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted/50'}`}>
@@ -231,6 +260,51 @@ function CitationList({ citations }: { citations: Citation[] }) {
           <FileText className="w-3 h-3 shrink-0" />
           <span>{c.doc_title}</span>
           <span className="text-muted-foreground/60">· {c.section_path.join(' > ')}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const metaCitationKindLabels: Record<string, string> = {
+  metric: '指标',
+  column: '字段',
+  table: '表',
+  dimension: '维度',
+  join: '关联',
+  value: '枚举值',
+}
+
+const metaCitationSourceLabels: Record<string, string> = {
+  meta_metric_info: '指标口径',
+  meta_column_info: '字段说明',
+  meta_table_info: '表说明',
+  meta_dimension_info: '维度说明',
+  meta_join_info: '关联说明',
+}
+
+function MetaCitationList({ citations }: { citations: MetaCitation[] }) {
+  if (citations.length === 0) return null
+
+  return (
+    <div className="space-y-1 rounded-lg border border-border bg-background p-2">
+      {citations.map((citation, index) => (
+        <div key={`${citation.source}-${citation.id}-${index}`} className="flex gap-2 rounded-md bg-muted/30 px-2.5 py-2 text-xs">
+          <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-medium text-foreground">{citation.name}</span>
+              <span className="rounded bg-background px-1.5 py-0.5 text-muted-foreground">
+                {metaCitationKindLabels[citation.kind] || citation.kind}
+              </span>
+              <span className="text-muted-foreground">
+                {metaCitationSourceLabels[citation.source] || citation.source}
+              </span>
+            </div>
+            {citation.description && (
+              <p className="mt-1 text-muted-foreground">{citation.description}</p>
+            )}
+          </div>
         </div>
       ))}
     </div>

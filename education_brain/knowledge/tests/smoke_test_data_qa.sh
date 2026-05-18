@@ -13,6 +13,7 @@
 #   SMOKE_STAGE=visual    图表协议
 #   SMOKE_STAGE=e2e       真实依赖全流程联调
 #   SMOKE_STAGE=bootstrap 数据生成与 meta 重建完整准备链路（不纳入 all）
+#   SMOKE_STAGE=meta_qa   数据说明/指标字典问答
 #   SMOKE_STAGE=all       全部阶段
 
 set -uo pipefail
@@ -650,6 +651,100 @@ else:
 "
 }
 
+run_meta_qa() {
+    section "8. Meta QA 数据说明"
+
+    local session response history data_question negative
+    session="${RUN_ID}-meta-qa"
+
+    response=$(post_json "/chat/query" "{\"query\":\"实付收入怎么算？\",\"mode\":\"meta_qa\",\"session_id\":\"${session}\"}" "$E2E_TIMEOUT")
+    assert_nonempty_response "meta_qa 在 ${E2E_TIMEOUT}s 内返回" "$response" "响应为空或超时；Meta QA 需要真实 LLM、MySQL meta、Qdrant/ES 可用。"
+    if [[ -z "$response" ]]; then
+        return
+    fi
+
+    assert_json "meta_qa 返回 meta_answer 与结构化 blocks" "$response" "
+blocks = data.get('blocks', [])
+has_markdown = any(isinstance(b, dict) and b.get('type') == 'markdown' and isinstance(b.get('content'), str) and b.get('content') for b in blocks)
+has_citations = any(isinstance(b, dict) and b.get('type') == 'meta_citations' and isinstance(b.get('data'), list) for b in blocks)
+ok = data.get('mode') == 'meta_qa' and data.get('intent') == 'meta_qa' and data.get('result_type') == 'meta_answer' and has_markdown and has_citations
+print('PASS' if ok else f'mode={data.get(\"mode\")}, intent={data.get(\"intent\")}, result_type={data.get(\"result_type\")}, blocks={blocks}')
+"
+
+    assert_json "meta citations 来源枚举合法且来自 meta 对象" "$response" "
+allowed_sources = {'meta_metric_info', 'meta_column_info', 'meta_table_info', 'meta_dimension_info', 'meta_join_info'}
+allowed_kinds = {'metric', 'column', 'table', 'dimension', 'join', 'value'}
+blocks = data.get('blocks', [])
+citations = []
+for block in blocks:
+    if isinstance(block, dict) and block.get('type') == 'meta_citations':
+        citations.extend(block.get('data') or [])
+bad = [c for c in citations if not isinstance(c, dict) or c.get('source') not in allowed_sources or c.get('kind') not in allowed_kinds or not c.get('id') or not c.get('name')]
+print('PASS' if citations and not bad else f'citations={citations}, bad={bad}')
+"
+
+    assert_json "meta_qa trace 包含 LLM 调用证据且不暴露完整 prompt/raw response" "$response" "
+stages = (data.get('trace') or {}).get('stages', [])
+stage = next((s for s in stages if isinstance(s, dict) and s.get('name') == 'meta_qa_llm'), {})
+usage = stage.get('usage') or {}
+ok = (
+    stage.get('status') == 'ok'
+    and stage.get('llm_called') is True
+    and stage.get('promptName')
+    and stage.get('promptHash')
+    and bool(usage)
+)
+leaks = 'prompt' in stage or 'rawResponse' in stage
+print('PASS' if ok and not leaks else f'stage={stage}, leaks={leaks}')
+"
+
+    assert_json "meta_qa 不返回 SQL、DataQaResult visual 或 data_qa_result block" "$response" "
+blocks = data.get('blocks', [])
+has_data_qa = any(isinstance(b, dict) and b.get('type') == 'data_qa_result' for b in blocks)
+has_visual = 'visual' in data or any(isinstance(b, dict) and isinstance(b.get('data'), dict) and 'visual' in b.get('data', {}) for b in blocks)
+has_sql = 'sql' in str(data.get('answer', '')).lower() or any('select ' in str(b).lower() for b in blocks)
+print('PASS' if not has_data_qa and not has_visual and not has_sql else f'has_data_qa={has_data_qa}, has_visual={has_visual}, has_sql={has_sql}, blocks={blocks}')
+"
+
+    history=$(get_json "${BASE}/chat/history?session_id=${session}&limit=10")
+    assert_json "历史回放保留 meta_qa blocks" "$history" "
+msgs = data.get('messages', [])
+assistant = [m for m in msgs if m.get('role') == 'assistant' and m.get('mode') == 'meta_qa']
+if not assistant:
+    print(f'Missing meta_qa assistant history: {msgs}')
+else:
+    blocks = assistant[-1].get('blocks') or []
+    has_markdown = any(isinstance(b, dict) and b.get('type') == 'markdown' for b in blocks)
+    has_citations = any(isinstance(b, dict) and b.get('type') == 'meta_citations' for b in blocks)
+    trace = assistant[-1].get('trace') or {}
+    print('PASS' if has_markdown and has_citations and isinstance(trace.get('stages'), list) else f'last={assistant[-1]}')
+"
+
+    data_question=$(post_json "/chat/query" "{\"query\":\"本月收入是多少？\",\"mode\":\"meta_qa\",\"session_id\":\"${session}\"}" "$CHAT_TIMEOUT")
+    assert_json "真实统计值问题建议切换 data_qa 且不执行 SQL" "$data_question" "
+trace = data.get('trace') or {}
+stages = trace.get('stages') or []
+route = next((s for s in stages if isinstance(s, dict) and s.get('name') == 'meta_qa_route'), {})
+ok = data.get('mode') == 'meta_qa' and route.get('message') == 'META_QUERY_REQUIRES_DATA_QA' and route.get('suggestedMode') == 'data_qa'
+print('PASS' if ok else f'data={data}')
+"
+
+    negative=$(DEBUG=false OPENAI_API_KEY= PYTHONPATH=. "$PYTHON_BIN" - <<'PY' 2>/dev/null || true
+import json
+
+from knowledge.analytics.meta_qa.pipeline import run_meta_qa
+from knowledge.core.config import get_settings
+
+get_settings.cache_clear()
+print(json.dumps(run_meta_qa("实付收入怎么算？", session_id="smoke-meta-qa-negative"), ensure_ascii=False, default=str))
+PY
+)
+    assert_json "OPENAI_API_KEY 清空时不会返回正常 meta_answer" "$negative" "
+ok = data.get('result_type') != 'meta_answer' and (data.get('error') or {}).get('code') == 'META_QA_UNAVAILABLE'
+print('PASS' if ok else f'Expected meta unavailable, got {data}')
+"
+}
+
 should_run() {
     local stage="$1"
     [[ "$SMOKE_STAGE" == "all" || "$SMOKE_STAGE" == "$stage" ]]
@@ -663,6 +758,7 @@ should_run "chat" && run_chat
 should_run "visual" && run_visual
 should_run "llm" && run_llm
 should_run "e2e" && run_e2e
+should_run "meta_qa" && run_meta_qa
 
 echo ""
 echo -e "${BOLD}━━ 测试汇总 ━━${NC}"

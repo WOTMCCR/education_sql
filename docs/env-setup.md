@@ -1,6 +1,6 @@
 # Environment Setup
 
-> Updated by env-preflight skill. Last updated: 2026-05-18 18:16:19 CST.
+> Updated by env-preflight skill. Last updated: 2026-05-18 18:31:45 CST.
 
 ## Tech Stack
 
@@ -98,6 +98,16 @@ Python 3.12 backend and data generator, Vite/React frontend, Docker Compose data
 | Workflow | Analytics health after rebuild | PASS | `/analytics/health` returned `healthy` with expected meta counts. |
 | Workflow | Iteration 04 e2e after rebuild | PASS | `cd education_brain && SMOKE_STAGE=e2e ./knowledge/tests/smoke_test_data_qa.sh` passed 6 checks. |
 | Prerequisite | 05A bootstrap | PASS | `init_db -> generate --profile smoke -> build_meta --recreate -> SMOKE_STAGE=meta` completed before 05B. |
+
+### Iteration 05B Completion: 2026-05-18 18:31:45 CST
+
+| Step | Status | Evidence |
+|------|--------|----------|
+| Backend tests | PASS | `cd education_brain && PYTHONPATH=. knowledge/.venv/bin/python -m pytest knowledge/tests -q` passed `39 passed, 1 warning`. |
+| Frontend tests | PASS | `cd education_brain_front && npm test` passed. |
+| Frontend build | PASS | `cd education_brain_front && npm run build` passed. |
+| Meta QA smoke | PASS | `cd education_brain && SMOKE_STAGE=meta_qa ./knowledge/tests/smoke_test_data_qa.sh` passed 9 checks. |
+| Full data QA smoke | PASS | `cd education_brain && SMOKE_STAGE=all ./knowledge/tests/smoke_test_data_qa.sh` passed 47 checks. |
 
 ## Verified Commands
 

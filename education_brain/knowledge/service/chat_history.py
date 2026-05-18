@@ -44,6 +44,7 @@ def get_recent_messages(session_id: str, limit: int = 10) -> list[dict]:
                     "answer": 1,
                     "citations": 1,
                     "blocks": 1,
+                    "trace": 1,
                     "created_at": 1,
                 },
             )

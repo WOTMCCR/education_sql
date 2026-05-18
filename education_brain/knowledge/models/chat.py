@@ -7,6 +7,30 @@ from pydantic import BaseModel, Field
 
 
 ChatMode = Literal["data_qa", "meta_qa"]
+MetaCitationKind = Literal["metric", "column", "table", "dimension", "join", "value"]
+MetaCitationSource = Literal[
+    "meta_metric_info",
+    "meta_column_info",
+    "meta_table_info",
+    "meta_dimension_info",
+    "meta_join_info",
+]
+
+
+class MetaCitation(BaseModel):
+    kind: MetaCitationKind
+    id: str
+    name: str
+    source: MetaCitationSource
+    description: str = ""
+
+
+class MetaQaResponse(BaseModel):
+    answer_markdown: str
+    citations: list[MetaCitation] = Field(default_factory=list)
+    unsupported_reason: str = ""
+    suggested_mode: ChatMode = "meta_qa"
+    trace_summary: dict = Field(default_factory=dict)
 
 
 class ChatRequest(BaseModel):
@@ -27,6 +51,7 @@ class ChatResponse(BaseModel):
     answer: str = ""
     citations: list[dict] = Field(default_factory=list)
     blocks: list[dict] | None = None
+    trace: dict | None = None
 
 
 class ChatMessage(BaseModel):
@@ -43,5 +68,6 @@ class ChatMessage(BaseModel):
     answer: str = ""
     citations: list[dict] = Field(default_factory=list)
     blocks: list[dict] | None = None
+    trace: dict | None = None
     intent: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

@@ -1,4 +1,4 @@
-import type { ChatBlock } from './data-qa'
+import type { ChatBlock, ProductChatMode } from './data-qa'
 
 // ============ Common ============
 export interface AppError {
@@ -155,8 +155,8 @@ export interface BrowseResponse {
 }
 
 // ============ Chat ============
-export type IntentType = 'data_qa'
-export type ChatMode = 'data_qa'
+export type IntentType = ProductChatMode | (string & {})
+export type ChatMode = ProductChatMode
 
 export interface ChatQueryResponse {
   task_id: string

@@ -71,6 +71,7 @@ def test_chat_history_saves_and_reads_complete_message(monkeypatch):
         ],
         created_at=created_at,
     )
+    message.trace = {"stages": [{"name": "execute_sql", "status": "ok"}]}
 
     chat_history.save_message(message)
     result = chat_history.get_recent_messages("s1", limit=10)
@@ -101,6 +102,7 @@ def test_chat_history_saves_and_reads_complete_message(monkeypatch):
                     },
                 },
             ],
+            "trace": {"stages": [{"name": "execute_sql", "status": "ok"}]},
             "created_at": created_at,
         }
     ]

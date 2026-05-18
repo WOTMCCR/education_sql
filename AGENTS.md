@@ -16,5 +16,6 @@
 - Verified test commands: `cd education_brain && PYTHONPATH=. knowledge/.venv/bin/python -m pytest knowledge/tests/test_data_qa_pipeline.py knowledge/tests/test_llm_nl2sql_pipeline.py -q`; `cd education_brain_front && npm test && npm run build`.
 - Iteration 05A preflight on 2026-05-18 verified `SMOKE_STAGE=meta` against the running stack before destructive bootstrap rebuilds.
 - Iteration 05B preflight on 2026-05-18 verified `SMOKE_STAGE=e2e` after the 05A bootstrap rebuild.
+- Iteration 05B completion on 2026-05-18 verified `SMOKE_STAGE=meta_qa` and `SMOKE_STAGE=all`; `/chat/query` now requires explicit `mode=data_qa` or `mode=meta_qa`.
 - TEI CPU `cpu-1.9` with the local `bge-large-zh-v1.5` Candle backend is the verified analytics embedding path. `cpu-1.8` could start but panicked on real `/embed` requests on this WSL host.
 - Full environment notes and incident log: `docs/env-setup.md`.
