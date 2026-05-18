@@ -1,13 +1,13 @@
 # Education Analytics Assistant
 
-An AI-assisted analytics workspace for education operations. The application lets operators, academic affairs staff, and managers ask natural-language questions about enrollment, revenue, refunds, completion, attendance, service tickets, and other operational data. It returns structured answers with charts, tables, metric definitions, generated SQL, and execution trace details.
+An AI-driven analytics workspace for education operations. Operators, academic affairs staff, and managers ask natural-language questions about enrollment, revenue, refunds, completion, attendance, service tickets, and other operational data. The system returns structured answers with charts, tables, metric definitions, generated SQL, and execution trace details.
 
-The project is organized as a full-stack prototype:
+The project is a full-stack prototype:
 
-- **Backend**: FastAPI service for chat, natural-language-to-SQL analytics, metadata retrieval, and conversation history.
-- **Frontend**: React + Vite chat interface with chart rendering, table fallback, metric explanations, and mobile-friendly layout.
-- **Analytics metadata**: configurable business metrics, dimensions, table relationships, deterministic core analytics rules, and semantic retrieval support.
-- **Demo data generator**: synthetic education-operations data used for local development and product demos.
+- **Backend** — FastAPI service: chat, natural-language-to-SQL analytics, metadata retrieval, and conversation history.
+- **Frontend** — React + Vite chat interface: chart rendering, table views, metric explanations, and mobile-friendly layout.
+- **Analytics metadata** — configurable business metrics, dimensions, table relationships, deterministic core analytics rules, and semantic retrieval.
+- **Demo data generator** — synthetic education-operations data for local development and product demos.
 
 ## Screenshots
 
@@ -77,111 +77,62 @@ The chat interface remains usable on narrow screens.
 
 ![Mobile chat](assets/readme/mobile-chat.png)
 
-## What It Can Do
+## Capabilities
 
-- Answer operational questions such as:
-  - "What is this month's enrollment?"
-  - "What is this month's revenue?"
-  - "What is this month's refund amount?"
-  - "How has completion rate changed over the last three months?"
-  - "How has revenue changed over the last 30 days?"
-  - "Which campus has the highest enrollment?"
-  - "What metrics should a campus manager review every day?"
-  - "What tables and fields are available?"
-- Render multiple result types:
-  - single metric cards
-  - line charts
-  - bar charts
-  - tables
-  - structured error states
-- Explain metric definitions, dimensions, fields, and table relationships.
-- Keep generated SQL, metric lineage, joins, assumptions, and trace steps available in an expandable debug panel.
-- Preserve conversation history with structured blocks, so charts and metadata citations can be restored after reload.
-- Block unsafe SQL-style user input before execution.
+- **Operational questions** — "What is this month's enrollment?", "How has revenue changed over the last 30 days?", "Which campus has the highest enrollment?", "What is this month's refund amount?", "How has completion rate changed over the last three months?"
+- **Multiple result types** — single metric cards, line charts, bar charts, tables, and structured error states.
+- **Metric explanations** — definitions, dimensions, fields, table relationships, and recommended analysis directions.
+- **Traceable analysis** — generated SQL, metric lineage, joins, assumptions, and execution stages in an expandable debug panel.
+- **Persistent history** — conversation blocks (including charts and metadata citations) survive page reload.
+- **SQL safety** — unsafe SQL-style user input is blocked before execution.
 
 ## Architecture
 
 ```text
 education_brain_fullstack/
-├── education_brain/          # FastAPI backend and analytics pipeline
-├── education_brain_front/    # React/Vite frontend
-├── data_ge/edu-data/         # synthetic demo data and metadata definitions
-└── assets/readme/            # public README screenshots
+├── education_brain/          # FastAPI backend – analytics pipeline, chat, metadata
+├── education_brain_front/    # React/Vite frontend – chat UI, charts, trace panels
+├── data_ge/edu-data/         # synthetic demo data generator and metadata definitions
+└── assets/readme/            # README screenshots
 ```
-
-Backend flow:
 
 ```text
 Chat request
   ├─ data-analysis question
-  │   ├─ core business rule -> SQL validation -> query execution -> chart/table response
-  │   └─ general analytics question -> metadata recall -> SQL generation -> validation -> execution -> response
-  └─ data-introduction question -> metadata retrieval -> catalog/metric explanation -> citations
+  │   ├─ core business rule → SQL validation → query execution → chart / table response
+  │   └─ general question → metadata recall → SQL generation → validation → execution → response
+  └─ data-introduction question → metadata retrieval → catalog / metric explanation → citations
 ```
 
-Frontend flow:
-
-```text
-Chat page
-  ├─ Data Analysis mode: renders DataQaResult blocks as charts, tables, SQL, metric definitions, and trace
-  └─ Data Introduction mode: renders markdown explanations and metadata citations
-```
-
-## Key Concepts
+## Modes
 
 ### Data Analysis
 
-Use this mode for questions that need actual numbers, ranking, trends, or detailed records. It can generate and execute read-only SQL against the configured analytics database.
+For questions that need numbers, rankings, trends, or detailed records. Generates and executes read-only SQL.
 
-Examples:
-
-- "What is this month's total revenue?"
-- "What is this month's enrollment?"
-- "What is this month's refund amount?"
-- "Show revenue trend for the last 30 days."
-- "Which campus has the highest revenue?"
-- "Which course series has the highest refund rate?"
-- "Compare renewal revenue this week and last week."
-- "Break down this month's revenue by course series."
-- "Break down this month's enrollment by class cohort."
+> "What is this month's total revenue?" · "Show revenue trend for the last 30 days." · "Which campus has the highest revenue?" · "Compare renewal revenue this week and last week." · "Break down this month's enrollment by class cohort."
 
 ### Data Introduction
 
-Use this mode to understand the data catalog, metric definitions, supported dimensions, and recommended analysis directions. It does not execute SQL.
+For understanding the data catalog, metric definitions, supported dimensions, and recommended analysis directions. Does not execute SQL.
 
-Examples:
-
-- "What tables are available?"
-- "What does paid revenue mean?"
-- "Which metrics should I monitor every day?"
-- "What revenue-related questions can I ask?"
+> "What tables are available?" · "What does paid revenue mean?" · "Which metrics should I monitor every day?" · "What revenue-related questions can I ask?"
 
 ### Automatic Routing
 
-The backend automatically routes discovery-style questions to Data Introduction, including prompts such as:
-
-- "What data is available?"
-- "What tables are available?"
-- "What can I ask?"
-- "What insights should I focus on?"
-- "Which metrics should I monitor?"
-
-This keeps users from accidentally sending catalog or strategy questions into the SQL pipeline.
+Discovery-style questions ("What can I ask?", "What data is available?", "Which metrics should I monitor?") are automatically routed to Data Introduction, even if the user is in analysis mode.
 
 ## Tech Stack
 
-- Python 3.12
-- FastAPI
-- Pydantic
-- MySQL-compatible analytics store
-- MongoDB-compatible chat history store
-- Qdrant-compatible vector retrieval
-- Elasticsearch-compatible dimension-value retrieval
-- OpenAI-compatible chat completion API
-- React 18
-- Vite
-- Recharts
-- Tailwind-style utility CSS
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3.12, FastAPI, Pydantic |
+| Frontend | React 18, Vite, Recharts, Tailwind-style CSS |
+| Analytics store | MySQL-compatible |
+| Chat history | MongoDB-compatible |
+| Vector retrieval | Qdrant-compatible |
+| Dimension search | Elasticsearch-compatible |
+| LLM | OpenAI-compatible chat completion API |
 
 ## Local Development
 
@@ -211,16 +162,7 @@ npm run build
 
 ## Configuration
 
-The backend expects these groups of configuration values:
-
-- chat history database connection
-- analytics SQL database connection
-- vector retrieval endpoint
-- dimension-value search endpoint
-- embedding endpoint
-- OpenAI-compatible LLM endpoint and model
-
-Do not commit real credentials. Keep local secrets in `.env` or deployment-specific secret managers.
+The backend requires connection details for: chat history database, analytics SQL database, vector retrieval endpoint, dimension-value search endpoint, embedding endpoint, and an OpenAI-compatible LLM. Copy the `.env.example` files to `.env` and fill in your values. Do not commit real credentials.
 
 ## API Surface
 
@@ -241,30 +183,17 @@ Primary endpoints:
 
 ## Verification Snapshot
 
-Recent local verification against the included `edu-data` demo domain covered:
+Recent local verification covered:
 
-- backend route tests for chat, data analysis, metadata introduction, history, and automatic routing
-- frontend unit tests and production build
-- browser-driven manual flows with Playwright:
-  - enrollment, revenue, refund, and completion metrics
-  - line, bar, stat, table, and trace rendering
-  - metadata introduction
-  - automatic routing from analysis to introduction
-  - history restore
-  - mobile viewport
+- Backend route tests for chat, data analysis, metadata introduction, history, and automatic routing.
+- Frontend unit tests and production build.
+- Browser-driven flows: enrollment, revenue, refund, completion metrics; line/bar/stat/table/trace rendering; metadata introduction; automatic routing; history restore; mobile viewport.
 
-Current demo-data acceptance notes:
-
-- Supported successfully in the latest run: current-month enrollment, current-month revenue, current-month refund amount, 30-day revenue trend, campus enrollment ranking, three-month completion-rate trend, metadata discovery, course-series refund-rate ranking, week-over-week renewal comparison, course-series revenue breakdown, cohort enrollment breakdown, and full "question -> parse -> execute -> result" UI flow.
-- Core demo questions use deterministic analytics rules where the metric definition is business-critical. Broader ad hoc questions still use the metadata-driven SQL pipeline with validation and structured error handling.
+Core demo questions use deterministic analytics rules where the metric definition is business-critical. Broader ad hoc questions use the metadata-driven SQL pipeline with validation and structured error handling.
 
 ## Security Notes
 
-- Real API keys, database passwords, and internal service endpoints are not required in the repository.
-- SQL execution is validated and unsafe user input is blocked.
-- Metadata introduction does not execute SQL.
-- LLM trace data is summarized and does not expose full prompts or raw responses to the frontend.
-
-## Repository Hygiene
-
-The public repository is intended to keep source code, sanitized examples, and product screenshots. Local verification artifacts, internal planning notes, environment files, generated databases, and private credentials should stay out of version control.
+- No real API keys, passwords, or internal endpoints are required in the repository.
+- SQL execution is validated; unsafe user input is blocked before execution.
+- Data Introduction does not execute SQL.
+- LLM trace data is summarized; full prompts and raw responses are not exposed to the frontend.
