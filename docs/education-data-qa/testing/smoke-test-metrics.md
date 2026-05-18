@@ -200,6 +200,8 @@ SMOKE_STAGE=all ./knowledge/tests/smoke_test_data_qa.sh
 SMOKE_STAGE=bootstrap ./knowledge/tests/smoke_test_data_qa.sh
 ```
 
+`SMOKE_STAGE=bootstrap` 会重建本地 MySQL 业务数据、MySQL meta 表、Qdrant collection 和 ES 维度取值索引；执行前应确认可以覆盖本地开发数据。
+
 环境变量：
 
 - `BASE`：服务地址，默认 `http://localhost:8000`。

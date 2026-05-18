@@ -12,6 +12,7 @@
 #   SMOKE_STAGE=chat      聊天接入与历史
 #   SMOKE_STAGE=visual    图表协议
 #   SMOKE_STAGE=e2e       真实依赖全流程联调
+#   SMOKE_STAGE=bootstrap 数据生成与 meta 重建完整准备链路（不纳入 all）
 #   SMOKE_STAGE=all       全部阶段
 
 set -uo pipefail
@@ -27,6 +28,9 @@ if [[ ! -x "$PYTHON_BIN" ]]; then
     PYTHON_BIN="python3"
 fi
 RUN_ID="data-qa-smoke-$(date +%s)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EDUCATION_BRAIN_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="$(cd "${EDUCATION_BRAIN_DIR}/.." && pwd)"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -177,6 +181,27 @@ else:
     missing = [k for k in required if k not in item]
     print('PASS' if not missing else f'Missing {missing} in {item}')
 "
+}
+
+run_bootstrap() {
+    section "7. 数据准备 Bootstrap"
+
+    if (
+        cd "${REPO_ROOT}/data_ge/edu-data" \
+        && uv run init_db.py \
+        && uv run -m generate.main --profile smoke \
+        && cd "${EDUCATION_BRAIN_DIR}" \
+        && PYTHONPATH=. "${PYTHON_BIN}" -m knowledge.analytics.build_meta \
+            --config ../data_ge/edu-data/meta/education_meta.yaml \
+            --recreate
+    ); then
+        pass "bootstrap 完成 init_db -> generate smoke -> build_meta --recreate"
+    else
+        fail "bootstrap 完成 init_db -> generate smoke -> build_meta --recreate" "数据准备链路执行失败"
+        return
+    fi
+
+    run_meta
 }
 
 assert_data_qa_result() {
@@ -631,6 +656,7 @@ should_run() {
 }
 
 check_health
+[[ "$SMOKE_STAGE" == "bootstrap" ]] && run_bootstrap
 should_run "meta" && run_meta
 should_run "pipeline" && run_pipeline
 should_run "chat" && run_chat
