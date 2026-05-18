@@ -14,7 +14,7 @@ const navItems = [
 export function Layout() {
   return (
     <div className="flex h-screen bg-background">
-      <aside className="w-56 border-r border-border bg-sidebar flex flex-col shrink-0">
+      <aside className="hidden w-56 border-r border-border bg-sidebar flex-col shrink-0 md:flex">
         <div className="p-4 border-b border-border flex items-center gap-2">
           <Upload className="w-5 h-5 text-primary" />
           <span className="text-primary">教育知识库</span>
@@ -37,7 +37,7 @@ export function Layout() {
           ))}
         </nav>
       </aside>
-      <main className="flex-1 overflow-hidden">
+      <main className="min-w-0 flex-1 overflow-hidden">
         <Outlet />
       </main>
     </div>

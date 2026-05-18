@@ -1,3 +1,5 @@
+import type { ChatBlock } from './data-qa'
+
 // ============ Common ============
 export interface AppError {
   code: string
@@ -153,12 +155,20 @@ export interface BrowseResponse {
 }
 
 // ============ Chat ============
-export type IntentType = 'course_intro' | 'question_search' | 'knowledge' | 'doc_search' | 'knowledge_qa'
+export type IntentType = 'course_intro' | 'question_search' | 'knowledge' | 'doc_search' | 'knowledge_qa' | 'data_qa'
+export type ChatMode = 'knowledge' | 'data_qa'
 
 export interface ChatQueryResponse {
   task_id: string
   intent: IntentType
-  status: string
+  status?: string
+  result_type?: string
+  mode?: ChatMode
+  items?: unknown[]
+  summary?: string
+  answer?: string
+  citations?: Citation[]
+  blocks?: ChatBlock[]
 }
 
 export interface Citation {
@@ -174,6 +184,12 @@ export interface ChatMessage {
   intent: IntentType
   created_at: string
   citations: Citation[]
+  mode?: ChatMode
+  result_type?: string
+  items?: unknown[]
+  summary?: string
+  answer?: string
+  blocks?: ChatBlock[]
 }
 
 export interface ChatHistoryResponse {
@@ -204,3 +220,5 @@ export interface QuestionCardVM {
   analysis: string
   qualityFlags: string[]
 }
+
+export type * from './data-qa'

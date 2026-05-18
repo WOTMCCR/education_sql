@@ -1,10 +1,12 @@
+import { lazy } from 'react'
 import { createBrowserRouter } from 'react-router'
 import { Layout } from './components/layout'
-import { ChatPage } from './pages/chat-page'
-import { CoursesPage } from './pages/courses-page'
-import { QuestionsPage } from './pages/questions-page'
-import { DocumentsPage } from './pages/documents-page'
-import { IngestPage } from './pages/ingest-page'
+
+const ChatPage = lazy(() => import('./pages/chat-page').then((module) => ({ default: module.ChatPage })))
+const CoursesPage = lazy(() => import('./pages/courses-page').then((module) => ({ default: module.CoursesPage })))
+const QuestionsPage = lazy(() => import('./pages/questions-page').then((module) => ({ default: module.QuestionsPage })))
+const DocumentsPage = lazy(() => import('./pages/documents-page').then((module) => ({ default: module.DocumentsPage })))
+const IngestPage = lazy(() => import('./pages/ingest-page').then((module) => ({ default: module.IngestPage })))
 
 export const router = createBrowserRouter([
   {

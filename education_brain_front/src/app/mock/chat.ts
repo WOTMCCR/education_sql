@@ -1,4 +1,5 @@
 import type { ChatQueryResponse, ChatHistoryResponse } from '../types'
+import { createDataQaChatBlocks, mockCampusRevenueRankingResult } from './data-qa'
 
 export function mockChatQuery(sessionId: string): ChatQueryResponse {
   void sessionId
@@ -100,6 +101,22 @@ export function mockGetHistory(sessionId: string): ChatHistoryResponse {
         content: '建议使用 DBUtils 的 PooledDB 类来实现连接池。它可以管理多个数据库连接，避免频繁创建和销毁连接带来的性能开销。',
         intent: 'knowledge_qa', created_at: '2026-04-17T14:31:08+08:00',
         citations: [{ chunk_id: 'chunk_002', doc_title: '尚硅谷大模型技术之Python连接MySQL', section_path: ['第2章 数据库连接', '2.2 连接池配置'] }],
+      },
+      {
+        task_id: 'chat_task_003', role: 'user', content: '哪个校区收入最高？',
+        intent: 'data_qa', mode: 'data_qa', created_at: '2026-05-18T10:00:00+08:00', citations: [],
+      },
+      {
+        task_id: 'chat_task_003', role: 'assistant',
+        content: mockCampusRevenueRankingResult.answer,
+        intent: 'data_qa',
+        mode: 'data_qa',
+        result_type: 'data_qa_result',
+        summary: mockCampusRevenueRankingResult.answer,
+        answer: mockCampusRevenueRankingResult.answer,
+        blocks: createDataQaChatBlocks(mockCampusRevenueRankingResult),
+        created_at: '2026-05-18T10:00:04+08:00',
+        citations: [],
       },
     ],
   }

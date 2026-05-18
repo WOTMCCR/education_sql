@@ -1,13 +1,22 @@
 import { useMock, http, resolveApiUrl } from './http'
 import { mockChatQuery, createMockSSEStream, mockGetHistory } from '../mock/chat'
+import { mockDataQaChatResponse } from '../mock/data-qa'
 import type { ChatQueryResponse, ChatHistoryResponse } from '../types'
 
 const enableSseDebug = import.meta.env.DEV || import.meta.env.VITE_DEBUG_HTTP === 'true'
 
-export async function chatQuery(sessionId: string, question: string, mode = 'stream', docType?: string): Promise<ChatQueryResponse> {
-  if (useMock) return mockChatQuery(sessionId)
-  void mode
+export async function chatQuery(sessionId: string, question: string, mode: 'knowledge' | 'data_qa' = 'knowledge', docType?: string): Promise<ChatQueryResponse> {
+  if (useMock) {
+    return mode === 'data_qa'
+      ? mockDataQaChatResponse(question)
+      : mockChatQuery(sessionId)
+  }
   void docType
+
+  if (mode === 'data_qa') {
+    return http<ChatQueryResponse>('POST', '/chat/query', { body: { session_id: sessionId, query: question, mode } })
+  }
+
   return http<ChatQueryResponse>('POST', '/chat/query/stream', { body: { session_id: sessionId, query: question } })
 }
 
@@ -65,6 +74,12 @@ export async function getChatHistory(sessionId: string): Promise<ChatHistoryResp
       role: message.role,
       content: message.content || message.answer || '',
       intent: message.intent || 'knowledge',
+      mode: message.mode,
+      result_type: message.result_type,
+      items: Array.isArray(message.items) ? message.items : [],
+      summary: message.summary || '',
+      answer: message.answer || '',
+      blocks: Array.isArray(message.blocks) ? message.blocks : [],
       created_at: message.created_at,
       citations: Array.isArray(message.citations) ? message.citations : [],
     })),

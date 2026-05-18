@@ -1,9 +1,15 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { lazy, Suspense, useState, useRef, useEffect, useCallback } from 'react'
 import { chatQuery, connectSSE, getChatHistory } from '../api/chat'
-import type { ChatMessage, Citation } from '../types'
+import type { ChatMessage, ChatMode, Citation } from '../types'
 import { StateView } from '../components/empty-state'
 import { MarkdownContent } from '../components/markdown-content'
-import { Send, Bot, User, FileText, Plus, MessageSquare, Loader2 } from 'lucide-react'
+import { Send, Bot, User, FileText, Plus, MessageSquare, Loader2, BookOpen, BarChart3 } from 'lucide-react'
+
+const DataQaResultView = lazy(() =>
+  import('../components/data-qa-result').then((module) => ({
+    default: module.DataQaResultView,
+  })),
+)
 
 interface StreamingState {
   content: string
@@ -21,6 +27,7 @@ export function ChatPage() {
   const [activeSession, setActiveSession] = useState(sessions[0])
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [mode, setMode] = useState<ChatMode>('knowledge')
   const [streaming, setStreaming] = useState<StreamingState | null>(null)
   const [loadingHistory, setLoadingHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -48,17 +55,52 @@ export function ChatPage() {
 
     // Add user message
     const userMsg: ChatMessage = {
-      task_id: '', role: 'user', content: question, intent: 'knowledge',
+      task_id: '', role: 'user', content: question, intent: mode === 'data_qa' ? 'data_qa' : 'knowledge',
+      mode,
       created_at: new Date().toISOString(), citations: [],
     }
     setMessages(prev => [...prev, userMsg])
+
+    if (mode === 'data_qa') {
+      try {
+        const res = await chatQuery(activeSession, question, 'data_qa')
+        const assistantMsg: ChatMessage = {
+          task_id: res.task_id,
+          role: 'assistant',
+          content: res.answer || res.summary || '',
+          intent: 'data_qa',
+          mode: 'data_qa',
+          result_type: res.result_type || 'data_qa_result',
+          items: res.items || [],
+          summary: res.summary || '',
+          answer: res.answer || '',
+          blocks: res.blocks || [],
+          created_at: new Date().toISOString(),
+          citations: res.citations || [],
+        }
+        setMessages(prev => [...prev, assistantMsg])
+      } catch {
+        const failedMsg: ChatMessage = {
+          task_id: '',
+          role: 'assistant',
+          content: '数据问数暂时不可用，请稍后重试。',
+          intent: 'data_qa',
+          mode: 'data_qa',
+          result_type: 'data_qa_result',
+          created_at: new Date().toISOString(),
+          citations: [],
+        }
+        setMessages(prev => [...prev, failedMsg])
+      }
+      return
+    }
 
     // Start streaming
     const streamState: StreamingState = { content: '', citations: [], status: '', done: false, error: null }
     setStreaming(streamState)
 
     try {
-      const res = await chatQuery(activeSession, question)
+      const res = await chatQuery(activeSession, question, 'knowledge')
       sseRef.current = connectSSE(res.task_id, (type, data) => {
         setStreaming(prev => {
           if (!prev) return prev
@@ -78,6 +120,7 @@ export function ChatPage() {
                 role: 'assistant',
                 content: data.answer || next.content,
                 intent: data.intent || 'knowledge',
+                mode: 'knowledge',
                 created_at: new Date().toISOString(),
                 citations: Array.isArray(data.citations) ? data.citations : next.citations,
               }
@@ -107,9 +150,9 @@ export function ChatPage() {
   }
 
   return (
-    <div className="h-full flex">
+    <div className="flex h-full min-w-0">
       {/* Sidebar */}
-      <div className="w-52 border-r border-border bg-muted/30 flex flex-col shrink-0">
+      <div className="hidden w-52 border-r border-border bg-muted/30 flex-col shrink-0 lg:flex">
         <div className="p-3 border-b border-border">
           <button onClick={handleNewSession} className="w-full flex items-center justify-center gap-1.5 px-3 py-2 border border-border rounded-md text-sm hover:bg-muted transition-colors">
             <Plus className="w-4 h-4" /> 新对话
@@ -132,14 +175,14 @@ export function ChatPage() {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-4">
           {loadingHistory ? <StateView type="loading" /> :
            messages.length === 0 && !streaming ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <Bot className="w-12 h-12 mb-3 opacity-30" />
-              <p className="text-sm">开始提问，探索知识库</p>
+              <p className="text-sm">开始提问，探索知识库或经营数据</p>
             </div>
           ) : (
             <>
@@ -177,11 +220,34 @@ export function ChatPage() {
 
         {/* Input */}
         <div className="p-4 border-t border-border">
-          <form onSubmit={e => { e.preventDefault(); handleSend() }} className="flex gap-2 max-w-3xl mx-auto">
+          <form onSubmit={e => { e.preventDefault(); handleSend() }} className="max-w-3xl mx-auto space-y-2">
+            <div className="inline-flex rounded-md border border-border bg-muted/30 p-1">
+              <button
+                type="button"
+                onClick={() => setMode('knowledge')}
+                className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs transition-colors ${
+                  mode === 'knowledge' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                普通问答
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('data_qa')}
+                className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs transition-colors ${
+                  mode === 'data_qa' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <BarChart3 className="h-3.5 w-3.5" />
+                数据问数
+              </button>
+            </div>
+            <div className="flex gap-2">
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              placeholder="输入你的问题..."
+              placeholder={mode === 'data_qa' ? '例如：最近30天收入趋势如何？' : '输入你的问题...'}
               disabled={!!streaming}
               className="flex-1 px-4 py-2.5 border border-border rounded-lg bg-input-background text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
             />
@@ -192,6 +258,7 @@ export function ChatPage() {
             >
               <Send className="w-4 h-4" />
             </button>
+            </div>
           </form>
         </div>
       </div>
@@ -201,17 +268,36 @@ export function ChatPage() {
 
 function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
+  const dataQaBlocks = message.blocks?.filter(block => block.type === 'data_qa_result') || []
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isUser ? 'bg-accent' : 'bg-primary'}`}>
         {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4 text-primary-foreground" />}
       </div>
-      <div className={`max-w-2xl ${isUser ? 'text-right' : ''}`}>
-        <div className={`inline-block rounded-lg p-3 text-sm ${isUser ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted/50'}`}>
-          {isUser ? message.content : <MarkdownContent content={message.content} />}
-        </div>
+      <div className={`min-w-0 max-w-2xl ${isUser ? 'text-right' : ''}`}>
+        {dataQaBlocks.length > 0 && !isUser ? (
+          <div className="space-y-2 text-left">
+            <Suspense fallback={<DataQaLoading />}>
+              {dataQaBlocks.map((block, index) => (
+                <DataQaResultView key={index} result={block.data} />
+              ))}
+            </Suspense>
+          </div>
+        ) : (
+          <div className={`inline-block rounded-lg p-3 text-sm ${isUser ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted/50'}`}>
+            {isUser ? message.content : <MarkdownContent content={message.content} />}
+          </div>
+        )}
         {message.citations.length > 0 && <CitationList citations={message.citations} />}
       </div>
+    </div>
+  )
+}
+
+function DataQaLoading() {
+  return (
+    <div className="rounded-lg border border-border bg-background px-3 py-3 text-xs text-muted-foreground">
+      正在加载数据问数视图...
     </div>
   )
 }

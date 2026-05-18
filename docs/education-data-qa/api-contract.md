@@ -487,12 +487,54 @@ type ChatBlock =
   "citations": [],
   "blocks": [
     { "type": "markdown", "content": "本月总收入为 128,560.00 元。" },
-    { "type": "data_qa_result", "data": "见 3.2 DataQaResult 结构" }
+    {
+      "type": "data_qa_result",
+      "data": {
+        "queryId": "dq_20260518_0001",
+        "mode": "data_qa",
+        "question": "本月总收入是多少？",
+        "answer": "本月总收入为 128,560.00 元。",
+        "intent": {
+          "analysisType": "single_metric",
+          "metrics": ["paid_revenue"],
+          "dimensions": [],
+          "filters": []
+        },
+        "visual": {
+          "type": "stat",
+          "title": "本月总收入",
+          "columns": [
+            { "key": "metric", "label": "指标", "type": "string" },
+            { "key": "value", "label": "金额", "type": "currency", "unit": "yuan", "precision": 2 }
+          ],
+          "rows": [{ "metric": "收入金额", "value": 128560.0 }]
+        },
+        "explain": {
+          "sql": "SELECT SUM(`order`.paid_amount) AS paid_revenue FROM `order` WHERE `order`.paid_at >= '2026-05-01'",
+          "metrics": [
+            {
+              "id": "paid_revenue",
+              "name": "收入金额",
+              "formula": "SUM(order.paid_amount)",
+              "description": "已支付成功订单的实收金额总和"
+            }
+          ],
+          "tables": ["order"],
+          "columns": ["order.paid_amount", "order.paid_at"],
+          "joins": [],
+          "assumptions": []
+        },
+        "trace": {
+          "stages": [{ "name": "execute_sql", "status": "ok", "durationMs": 18 }],
+          "rowCount": 1,
+          "durationMs": 1066
+        },
+        "warnings": []
+      }
+    }
   ]
 }
 ```
-
-说明：真实 JSON 中 `blocks[1].data` 必须是完整 `DataQaResult` 对象，上例为避免重复省略。
 
 ### 4.2 GET /chat/history
 
