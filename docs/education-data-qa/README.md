@@ -19,10 +19,20 @@ docs/education-data-qa/
     02-nl2sql-pipeline/
       goal.md
       requirements-and-plan.md
-    03-chat-integration/
+    03-llm-nl2sql/
       goal.md
       requirements-and-plan.md
-    04-visualization-and-polish/
+    04-chat-visual-integration/
+      goal.md
+      requirements-and-plan.md
+      frontend-functionality.md
+    05a-rag-freeze-and-bootstrap/  ← 目录名保留，内容已收束为旧 RAG 删除检查 + bootstrap
+      goal.md
+      requirements-and-plan.md
+    05b-meta-qa/
+      goal.md
+      requirements-and-plan.md
+    05-meta-qa-and-data-generation/  ← superseded by 05A/05B, kept for history
       goal.md
       requirements-and-plan.md
 ```

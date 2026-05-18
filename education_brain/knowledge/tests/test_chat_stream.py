@@ -2,24 +2,24 @@ import asyncio
 
 import pytest
 
+from knowledge.core.llm import StreamChunk
 from knowledge.service import chat_stream
 
 
 @pytest.mark.anyio
 async def test_run_knowledge_stream_builds_done_answer_from_tokens_only(monkeypatch):
+    async def inline_to_thread(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
     class FakeGraph:
         def invoke(self, state):
             return {"final_chunks": [{"chunk_text": "ctx"}]}
 
-    async def fake_answer_generate_stream(state):
-        yield {"event": "thinking", "data": {"text": "先分析问题"}}
-        yield {"event": "token", "data": {"text": "最终"}}
-        yield {"event": "thinking", "data": {"text": "再组织答案"}}
-        yield {"event": "token", "data": {"text": "回答"}}
-        yield {
-            "event": "citation",
-            "data": {"citations": [{"index": 1, "doc_title": "算法讲义"}]},
-        }
+    async def fake_chat_completion_stream(**kwargs):
+        yield StreamChunk(kind="thinking", text="先分析问题")
+        yield StreamChunk(kind="content", text="最终")
+        yield StreamChunk(kind="thinking", text="再组织答案")
+        yield StreamChunk(kind="content", text="回答")
 
     saved_messages = []
 
@@ -28,9 +28,10 @@ async def test_run_knowledge_stream_builds_done_answer_from_tokens_only(monkeypa
         lambda: FakeGraph(),
     )
     monkeypatch.setattr(
-        "knowledge.processor.query_pipeline.nodes.answer_generate.answer_generate_stream",
-        fake_answer_generate_stream,
+        "knowledge.processor.query_pipeline.nodes.answer_generate.chat_completion_stream",
+        fake_chat_completion_stream,
     )
+    monkeypatch.setattr(chat_stream.asyncio, "to_thread", inline_to_thread)
     monkeypatch.setattr(chat_stream, "get_recent_messages", lambda session_id, limit=6: [])
     monkeypatch.setattr(chat_stream, "save_message", lambda message: saved_messages.append(message))
 

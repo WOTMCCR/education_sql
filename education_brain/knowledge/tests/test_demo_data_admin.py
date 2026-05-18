@@ -32,6 +32,10 @@ def test_reset_demo_data_clears_all_demo_targets(monkeypatch):
             self.object_name = object_name
 
     class FakeMinio:
+        def bucket_exists(self, bucket):
+            assert bucket == "education-knowledge"
+            return True
+
         def list_objects(self, bucket, prefix, recursive):
             assert bucket == "education-knowledge"
             assert prefix == "documents/"

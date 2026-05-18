@@ -3,6 +3,8 @@
 
 from pathlib import Path
 
+import pytest
+
 # 项目根目录
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = PROJECT_ROOT / "data" / "数据" / "课程介绍.md"
@@ -10,6 +12,9 @@ DATA_FILE = PROJECT_ROOT / "data" / "数据" / "课程介绍.md"
 
 def test_parse_catalog():
     from knowledge.processor.catalog_parser import parse_catalog
+
+    if not DATA_FILE.exists():
+        pytest.skip(f"Fixture file is not present in this checkout: {DATA_FILE}")
 
     series_list, module_list = parse_catalog(DATA_FILE)
 

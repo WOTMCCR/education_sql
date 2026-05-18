@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel, Field
 
+from knowledge.analytics.agent import run_data_qa
 from knowledge.analytics.meta_store import get_counts_safe
 from knowledge.analytics.search import search_columns, search_metrics, search_values
 from knowledge.core.clients import (
@@ -13,6 +15,11 @@ from knowledge.core.clients import (
 from knowledge.core.config import get_settings
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+
+
+class AnalyticsQueryRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+    session_id: str | None = None
 
 
 def _component(check) -> dict[str, str]:
@@ -59,3 +66,8 @@ def analytics_meta_columns(q: str = Query(..., min_length=1), limit: int = Query
 @router.get("/meta/values")
 def analytics_meta_values(q: str = Query(..., min_length=1), limit: int = Query(5, ge=1, le=50)):
     return {"items": search_values(q, limit)}
+
+
+@router.post("/query")
+def analytics_query(request: AnalyticsQueryRequest):
+    return run_data_qa(request.question, session_id=request.session_id)

@@ -2,7 +2,7 @@
 
 日期：2026-05-18
 
-本文档固定 Iteration 04 前端功能目标、当前 mock 实现状态、后端联调要求和验收方式。后续真实后端接入时，以 `../../api-contract.md` 的 `DataQaResult` 为数据源，以本文档作为前端行为验收标准。
+本文档固定 Iteration 04 合并后的前端功能目标、当前 mock 实现状态、后端联调要求和验收方式。后续真实后端接入时，以 `../../api-contract.md` 的 `DataQaResult` 为数据源，以本文档作为前端行为验收标准。
 
 ## 1. 当前前端基线
 
@@ -35,8 +35,8 @@ education_brain_front/vite.config.ts
 
 当前前端入口：
 
-- 普通问答：保留 `/chat/query/stream` + SSE。
-- 数据问数：显式切换到 `mode=data_qa` 后，mock 下同步返回 `data_qa_result` block；真实联调时走 `POST /chat/query` with `mode=data_qa`。
+- 数据问数：显式使用 `mode=data_qa`，mock 下同步返回 `data_qa_result` block；真实联调时走 `POST /chat/query` with `mode=data_qa`。
+- 旧问答/RAG 入口、`/chat/query/stream` + SSE 不再属于本轮产品主线，Iteration 04 后端清理时应删除或取消注册。
 - 当前不实现流式问数。
 
 ## 2. 用户可见功能
@@ -46,15 +46,16 @@ education_brain_front/vite.config.ts
 聊天输入区提供显式模式切换：
 
 ```text
-[普通问答] [数据问数]
+[数据问数]
 ```
 
 要求：
 
-- 默认是普通问答。
-- 切到数据问数后，输入 placeholder 使用问数示例，例如“最近30天收入趋势如何？”。
+- 默认就是数据问数。
+- 输入 placeholder 使用问数示例，例如“最近30天收入趋势如何？”。
 - 数据问数请求必须携带 `mode=data_qa`。
 - 不做自动意图识别，不根据用户文本猜测是否问数。
+- 不传 `mode` 或传未知 `mode` 时，后端返回 400，前端展示结构化错误。
 
 ### 2.2 问数结果消息
 
@@ -73,7 +74,7 @@ type ChatBlock =
 - 只要 assistant message 中存在 `blocks[].type === "data_qa_result"`，就用 `DataQaResultView` 渲染。
 - `blocks[].data` 必须是完整 `DataQaResult`。
 - `answer` 可作为摘要展示，但不能替代 `DataQaResult`。
-- 普通知识问答消息仍使用 markdown 渲染。
+- markdown block 只作为问数摘要或后续 `meta_qa` 解释承载，不代表保留旧 RAG 普通知识问答入口。
 
 ### 2.3 图表和表格
 
@@ -162,7 +163,7 @@ DataQaResult
 
 ### 3.2 POST /chat/query mode=data_qa
 
-Iteration 03 完成后，聊天页通过该接口接入真实问数。
+Iteration 04 完成后，聊天页通过该接口接入真实问数。
 
 Request:
 
@@ -238,7 +239,7 @@ assistant 历史消息最低字段：
 - SQL 生成、校验、纠错或执行。
 - join path 推导。
 - 趋势排序、排名排序、聚合计算。
-- 把普通问答自动升级为问数。
+- 从其他模式或自然语言文本自动推断并升级为问数。
 - 从 `answer` 文本反推图表数据。
 
 ## 5. 联调检查清单

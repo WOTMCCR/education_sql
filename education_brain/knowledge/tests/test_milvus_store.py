@@ -63,6 +63,9 @@ def test_hybrid_search_loads_collection_and_returns_hits(monkeypatch):
     captured = {"loaded": False}
 
     class FakeMilvus:
+        def has_collection(self, collection_name):
+            return True
+
         def load_collection(self, collection_name):
             captured["loaded"] = True
             captured["collection_name"] = collection_name

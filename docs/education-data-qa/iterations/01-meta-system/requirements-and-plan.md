@@ -167,7 +167,7 @@ Iteration 01 需要先固定诊断和召回接口，后续 smoke test 与 pipeli
 每个 item 至少包含：
 
 ```json
-{"field": "org_campus.campus_name", "value": "北京校区", "score": 0.76}
+{"field": "org_campus.campus_name", "value": "徐汇校区", "score": 0.76}
 ```
 
 ## 构建脚本契约

@@ -18,6 +18,15 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
 
+  mongodb:
+    image: mongo:7.0
+    container_name: education-data-qa-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    volumes:
+      - ./volumes/mongodb:/data/db
+
   elasticsearch:
     build: ./elasticsearch
     container_name: education-data-qa-elasticsearch

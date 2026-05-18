@@ -797,6 +797,193 @@ def get_counts_safe() -> dict[str, int]:
         connection.close()
 
 
+def _json_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
+
+
+def get_metric_context(metric_ids: list[str]) -> list[dict[str, Any]]:
+    if not metric_ids:
+        return []
+    placeholders = ", ".join(["%s"] * len(metric_ids))
+    connection = mysql_dict_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT metric_id, name, description, metric_type, formula, base_table,
+                       time_column, unit, default_filters_json, allowed_dimensions_json,
+                       relevant_columns_json, aliases_json
+                FROM meta_metric_info
+                WHERE enabled = 1 AND metric_id IN ({placeholders})
+                """,
+                metric_ids,
+            )
+            rows = list(cursor.fetchall())
+    finally:
+        connection.close()
+    by_id = {row["metric_id"]: row for row in rows}
+    result: list[dict[str, Any]] = []
+    for metric_id in metric_ids:
+        row = by_id.get(metric_id)
+        if not row:
+            continue
+        row["default_filters"] = _json_list(row.pop("default_filters_json", None))
+        row["allowed_dimensions"] = _json_list(row.pop("allowed_dimensions_json", None))
+        row["relevant_columns"] = _json_list(row.pop("relevant_columns_json", None))
+        row["aliases"] = _json_list(row.pop("aliases_json", None))
+        result.append(row)
+    return result
+
+
+def get_dimensions_by_ids(dimension_ids: list[str]) -> list[dict[str, Any]]:
+    if not dimension_ids:
+        return []
+    placeholders = ", ".join(["%s"] * len(dimension_ids))
+    connection = mysql_dict_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT dimension_id, name, table_name, column_name, key_column,
+                       time_grain, value_sql, aliases_json
+                FROM meta_dimension_info
+                WHERE enabled = 1 AND dimension_id IN ({placeholders})
+                """,
+                dimension_ids,
+            )
+            rows = list(cursor.fetchall())
+    finally:
+        connection.close()
+    by_id = {row["dimension_id"]: row for row in rows}
+    result: list[dict[str, Any]] = []
+    for dimension_id in dimension_ids:
+        row = by_id.get(dimension_id)
+        if not row:
+            continue
+        row["aliases"] = _json_list(row.pop("aliases_json", None))
+        result.append(row)
+    return result
+
+
+def get_columns_by_full_names(full_names: list[str]) -> list[dict[str, Any]]:
+    if not full_names:
+        return []
+    unique_names = list(dict.fromkeys([name for name in full_names if name]))
+    placeholders = ", ".join(["%s"] * len(unique_names))
+    connection = mysql_dict_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT full_name, table_name, column_name, data_type, column_type,
+                       description, business_role, aliases_json,
+                       is_metric_candidate, is_dimension_candidate
+                FROM meta_column_info
+                WHERE enabled = 1 AND full_name IN ({placeholders})
+                """,
+                unique_names,
+            )
+            rows = list(cursor.fetchall())
+    finally:
+        connection.close()
+    by_name = {row["full_name"]: row for row in rows}
+    result: list[dict[str, Any]] = []
+    for full_name in unique_names:
+        row = by_name.get(full_name)
+        if not row:
+            continue
+        row["aliases"] = _json_list(row.pop("aliases_json", None))
+        result.append(row)
+    return result
+
+
+def get_join_edges(enabled_only: bool = True) -> list[dict[str, Any]]:
+    connection = mysql_dict_connection()
+    try:
+        with connection.cursor() as cursor:
+            where = "WHERE enabled = 1" if enabled_only else ""
+            cursor.execute(
+                f"""
+                SELECT join_id, left_table, left_column, right_table, right_column,
+                       join_type, relationship_type, path_group, description
+                FROM meta_join_info
+                {where}
+                ORDER BY join_id
+                """
+            )
+            return list(cursor.fetchall())
+    finally:
+        connection.close()
+
+
+def find_join_path(source_table: str, target_table: str) -> list[dict[str, Any]]:
+    """Find the shortest explicit join path between two tables.
+
+    The graph is treated as undirected for path discovery, but each returned edge
+    keeps the original meta_join_info orientation so SQL rendering can decide the
+    correct ON condition.
+    """
+    if source_table == target_table:
+        return []
+    edges = get_join_edges()
+    adjacency: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+    for edge in edges:
+        adjacency.setdefault(edge["left_table"], []).append((edge["right_table"], edge))
+        adjacency.setdefault(edge["right_table"], []).append((edge["left_table"], edge))
+    queue: list[tuple[str, list[dict[str, Any]]]] = [(source_table, [])]
+    visited = {source_table}
+    while queue:
+        table, path = queue.pop(0)
+        for next_table, edge in adjacency.get(table, []):
+            if next_table in visited:
+                continue
+            next_path = [*path, edge]
+            if next_table == target_table:
+                return next_path
+            visited.add(next_table)
+            queue.append((next_table, next_path))
+    return []
+
+
+def get_table_context(table_names: list[str]) -> list[dict[str, Any]]:
+    if not table_names:
+        return []
+    placeholders = ", ".join(["%s"] * len(table_names))
+    connection = mysql_dict_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT table_name, domain_name, business_name, description, aliases_json, row_count
+                FROM meta_table_info
+                WHERE enabled = 1 AND table_name IN ({placeholders})
+                """,
+                table_names,
+            )
+            rows = list(cursor.fetchall())
+    finally:
+        connection.close()
+    by_name = {row["table_name"]: row for row in rows}
+    result: list[dict[str, Any]] = []
+    for table_name in table_names:
+        row = by_name.get(table_name)
+        if not row:
+            continue
+        row["aliases"] = _json_list(row.pop("aliases_json", None))
+        result.append(row)
+    return result
+
+
 def mysql_like_search(table: str, query: str, limit: int) -> list[dict[str, Any]]:
     connection = mysql_dict_connection()
     try:

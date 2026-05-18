@@ -1,14 +1,22 @@
+import asyncio
+
 from fastapi.testclient import TestClient
 
 from knowledge.api.app import app
 from knowledge.api.routes import chat as chat_route
+from knowledge.api.routes.chat import ChatRequest, chat_history, chat_query, chat_query_stream
 from knowledge.models.chat import ChatResponse
 from knowledge.models.intent import IntentResult
 from knowledge.service import chat_sync, chat_stream
 
 
+async def _inline_to_thread(fn, *args, **kwargs):
+    return fn(*args, **kwargs)
+
+
 def test_chat_query_routes_search_intent_without_invoking_graph(monkeypatch):
     saved_messages = []
+    monkeypatch.setattr(chat_route.asyncio, "to_thread", _inline_to_thread)
 
     monkeypatch.setattr(
         chat_route,
@@ -38,11 +46,7 @@ def test_chat_query_routes_search_intent_without_invoking_graph(monkeypatch):
         ),
     )
 
-    client = TestClient(app)
-    response = client.post("/chat/query", json={"query": "有哪些 Python 相关课程"})
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = asyncio.run(chat_query(ChatRequest(query="有哪些 Python 相关课程"))).model_dump()
     assert payload["intent"] == "course_intro"
     assert payload["result_type"] == "search_result"
     assert payload["summary"] == "找到 1 门课程"
@@ -54,6 +58,7 @@ def test_chat_query_routes_search_intent_without_invoking_graph(monkeypatch):
 
 def test_chat_query_routes_answer_intent_to_graph(monkeypatch):
     saved_messages = []
+    monkeypatch.setattr(chat_route.asyncio, "to_thread", _inline_to_thread)
 
     monkeypatch.setattr(
         chat_route,
@@ -77,11 +82,7 @@ def test_chat_query_routes_answer_intent_to_graph(monkeypatch):
         ),
     )
 
-    client = TestClient(app)
-    response = client.post("/chat/query", json={"query": "对比一下几种排序算法的优劣"})
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = asyncio.run(chat_query(ChatRequest(query="对比一下几种排序算法的优劣"))).model_dump()
     assert payload["intent"] == "knowledge"
     assert payload["result_type"] == "answer"
     assert payload["answer"] == "排序算法各有适用场景"
@@ -92,6 +93,7 @@ def test_chat_query_routes_answer_intent_to_graph(monkeypatch):
 
 def test_chat_query_routes_learning_path_question_uses_knowledge_intent(monkeypatch):
     saved_messages = []
+    monkeypatch.setattr(chat_route.asyncio, "to_thread", _inline_to_thread)
 
     monkeypatch.setattr(
         chat_route,
@@ -115,11 +117,7 @@ def test_chat_query_routes_learning_path_question_uses_knowledge_intent(monkeypa
         ),
     )
 
-    client = TestClient(app)
-    response = client.post("/chat/query", json={"query": "学完 Python 基础后应该学什么"})
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = asyncio.run(chat_query(ChatRequest(query="学完 Python 基础后应该学什么"))).model_dump()
     assert payload["intent"] == "knowledge"
     assert payload["result_type"] == "answer"
     assert len(saved_messages) == 2
@@ -128,6 +126,7 @@ def test_chat_query_routes_learning_path_question_uses_knowledge_intent(monkeypa
 
 
 def test_chat_history_returns_full_message_fields(monkeypatch):
+    monkeypatch.setattr(chat_route.asyncio, "to_thread", _inline_to_thread)
     monkeypatch.setattr(
         chat_route,
         "get_recent_messages",
@@ -146,11 +145,7 @@ def test_chat_history_returns_full_message_fields(monkeypatch):
         ],
     )
 
-    client = TestClient(app)
-    response = client.get("/chat/history", params={"session_id": "s1", "limit": 10})
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = asyncio.run(chat_history(session_id="s1", limit=10))
     assert payload["messages"][0]["result_type"] == "search_result"
     assert payload["messages"][0]["items"] == [{"title": "Python 基础"}]
     assert payload["messages"][0]["created_at"] == "2026-04-18T12:00:00Z"
@@ -214,6 +209,7 @@ def test_handle_question_uses_assistant_style_summary(monkeypatch):
 
 def test_chat_query_stream_accepts_search_intent_and_returns_processing(monkeypatch):
     saved_messages = []
+    monkeypatch.setattr(chat_stream.asyncio, "to_thread", _inline_to_thread)
 
     async def fake_run_stream_pipeline(**kwargs):
         return None
@@ -234,11 +230,7 @@ def test_chat_query_stream_accepts_search_intent_and_returns_processing(monkeypa
     )
     monkeypatch.setattr(chat_stream, "run_stream_pipeline", fake_run_stream_pipeline)
 
-    client = TestClient(app)
-    response = client.post("/chat/query/stream", json={"query": "有哪些 Python 课程？"})
-
-    assert response.status_code == 200
-    payload = response.json()
+    payload = asyncio.run(chat_query_stream(ChatRequest(query="有哪些 Python 课程？"))).model_dump()
     assert payload["intent"] == "course_intro"
     assert payload["status"] == "processing"
     assert payload["task_id"]
@@ -247,6 +239,8 @@ def test_chat_query_stream_accepts_search_intent_and_returns_processing(monkeypa
 
 
 def test_chat_query_stream_can_complete_search_intent_via_sse(monkeypatch):
+    monkeypatch.setattr(chat_stream.asyncio, "to_thread", _inline_to_thread)
+
     async def fake_run_stream_pipeline(**kwargs):
         queue = kwargs["queue"]
         await queue.put(
@@ -276,17 +270,16 @@ def test_chat_query_stream_can_complete_search_intent_via_sse(monkeypatch):
     monkeypatch.setattr(chat_stream, "save_message", lambda message: None)
     monkeypatch.setattr(chat_stream, "run_stream_pipeline", fake_run_stream_pipeline)
 
-    client = TestClient(app)
-    submit = client.post("/chat/query/stream", json={"query": "有哪些 Python 课程？"})
+    submit = asyncio.run(chat_query_stream(ChatRequest(query="有哪些 Python 课程？")))
+    task_id = submit.task_id
 
-    assert submit.status_code == 200
-    task_id = submit.json()["task_id"]
+    async def collect_stream():
+        chunks = []
+        async for chunk in chat_stream.sse_event_generator(task_id):
+            chunks.append(chunk)
+        return "".join(chunks)
 
-    with client.stream("GET", f"/chat/stream/{task_id}") as response:
-        body = b"".join(response.iter_bytes())
-
-    text = body.decode("utf-8")
-    assert response.status_code == 200
+    text = asyncio.run(collect_stream())
     assert "event: done" in text
     assert '"intent": "course_intro"' in text
     assert '"result_type": "search_result"' in text

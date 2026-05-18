@@ -27,6 +27,7 @@ def test_health_check_passes_timeout_to_all_checks(monkeypatch):
             app_name="test-app",
             minio_bucket="bucket",
             health_check_timeout_seconds=0.25,
+            health_required_dependencies=["mongodb", "milvus", "minio"],
         ),
     )
     monkeypatch.setattr(app_module, "probe_mongodb", record_check)
@@ -37,6 +38,38 @@ def test_health_check_passes_timeout_to_all_checks(monkeypatch):
 
     assert seen == [0.25, 0.25, 0.25]
     assert result["status"] == "healthy"
+    assert result["required"] == ["mongodb", "milvus", "minio"]
+
+
+def test_health_check_defaults_to_mongodb_only(monkeypatch):
+    seen = []
+
+    def record_check(timeout_seconds):
+        seen.append(timeout_seconds)
+
+    def fail_if_called(timeout_seconds):
+        raise AssertionError(f"optional legacy dependency should not be checked: {timeout_seconds}")
+
+    monkeypatch.setattr(
+        app_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            app_name="test-app",
+            minio_bucket="bucket",
+            health_check_timeout_seconds=0.25,
+            health_required_dependencies=["mongodb"],
+        ),
+    )
+    monkeypatch.setattr(app_module, "probe_mongodb", record_check)
+    monkeypatch.setattr(app_module, "probe_milvus", fail_if_called)
+    monkeypatch.setattr(app_module, "probe_minio", fail_if_called)
+
+    result = app_module.health_check()
+
+    assert seen == [0.25]
+    assert result["status"] == "healthy"
+    assert result["required"] == ["mongodb"]
+    assert result["components"] == {"mongodb": "ok"}
 
 
 def test_probe_mongodb_uses_configured_client_timeouts(monkeypatch):
@@ -186,6 +219,7 @@ def test_health_check_reports_dependency_failures(monkeypatch):
             app_name="test-app",
             minio_bucket="bucket",
             health_check_timeout_seconds=0.05,
+            health_required_dependencies=["mongodb", "milvus", "minio"],
         ),
     )
     monkeypatch.setattr(app_module, "probe_mongodb", _failing_check)

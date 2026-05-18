@@ -8,6 +8,7 @@
 
 import logging
 import time
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
@@ -18,6 +19,13 @@ from knowledge.core.config import get_settings
 logger = logging.getLogger(__name__)
 
 _llm_unavailable_until = 0.0
+
+
+@dataclass(frozen=True)
+class ChatCompletionTextResult:
+    text: str
+    usage: dict[str, Any]
+    model: str
 
 
 def _mark_llm_temporarily_unavailable(seconds: float) -> None:
@@ -77,7 +85,9 @@ def chat_completion_text(
     max_tokens: int | None = None,
     timeout: float | None = None,
     trigger_cooldown: bool = True,
-) -> str | None:
+    response_format: dict[str, Any] | None = None,
+    return_metadata: bool = False,
+) -> str | ChatCompletionTextResult | None:
     """统一的 chat completion 文本调用。
 
     返回：
@@ -97,6 +107,8 @@ def chat_completion_text(
     }
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
+    if response_format is not None:
+        kwargs["response_format"] = response_format
 
     try:
         client = get_openai()
@@ -116,6 +128,18 @@ def chat_completion_text(
             return None
         global _llm_unavailable_until
         _llm_unavailable_until = 0.0
+        if return_metadata:
+            usage_obj = getattr(resp, "usage", None)
+            usage = {}
+            if usage_obj is not None:
+                usage = {
+                    "prompt_tokens": getattr(usage_obj, "prompt_tokens", None),
+                    "completion_tokens": getattr(usage_obj, "completion_tokens", None),
+                    "total_tokens": getattr(usage_obj, "total_tokens", None),
+                }
+            else:
+                usage = {"usageUnavailable": True}
+            return ChatCompletionTextResult(text=text, usage=usage, model=getattr(resp, "model", model) or model)
         return text
     except Exception as e:
         logger.warning("%s 失败: %s", purpose, e)
@@ -124,7 +148,6 @@ def chat_completion_text(
         return None
 
 import asyncio
-from dataclasses import dataclass
 from collections.abc import AsyncGenerator
 
 import httpx as _httpx  # 用于 Ollama 原生流式回退
@@ -289,6 +312,5 @@ async def _stream_via_ollama_api(
                         break
     except Exception as e:
         logger.warning("Ollama 原生流式回退失败: %s", e)
-
 
 

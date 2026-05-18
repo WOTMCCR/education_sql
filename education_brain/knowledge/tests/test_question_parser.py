@@ -1,11 +1,16 @@
 # knowledge/tests/test_question_parser.py
 from pathlib import Path
 
+import pytest
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_FILE = PROJECT_ROOT / "data" / "数据" / "题目资料.md"
 
 def test_parse_questions():
     from knowledge.processor.question_parser import parse_questions
+
+    if not DATA_FILE.exists():
+        pytest.skip(f"Fixture file is not present in this checkout: {DATA_FILE}")
 
     banks, items = parse_questions(DATA_FILE)
 

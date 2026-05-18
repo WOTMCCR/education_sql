@@ -9,8 +9,8 @@
 - `POST /analytics/query` 是问数能力的最小稳定接口，直接返回 `DataQaResult`。
 - 聊天接入只是在 `ChatResponse` / `ChatMessage` 中包一层 block，不改变 `DataQaResult` 内部结构。
 - 前端图表只根据 `visual.type`、`visual.columns`、`visual.rows`、`visual.x`、`visual.y` 渲染，不重新推断业务语义。
-- SQL、指标口径、trace、warnings、error 都是调试和教学信息，必须完整保留到聊天历史。
-- 本版暂不定义流式问数。`mode=data_qa` 使用同步返回；现有 `/chat/query/stream` 继续服务普通知识问答。
+- SQL、指标口径、脱敏后的 trace、warnings、error 都是调试和教学信息，必须保留到聊天历史。面向前端的 trace 不暴露完整 system prompt 或完整 raw response。
+- 本版暂不定义流式问数。`mode=data_qa` 使用同步返回；旧 `/chat/query/stream` RAG 入口在 Iteration 04 删除或取消注册。
 
 ## 2. 公共类型
 
@@ -433,7 +433,7 @@ Response: `DataQaResult`
 
 ### 4.1 POST /chat/query
 
-普通知识问答保持现有行为。数据问数模式增加 `mode=data_qa`。
+聊天入口使用显式 `mode`。Iteration 04 只支持 `mode=data_qa`；Iteration 05B 扩展 `mode=meta_qa`。旧 `knowledge`/RAG 模式不保留兼容。
 
 Request:
 
@@ -450,7 +450,7 @@ Request:
 | 字段 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---:|---|---|
 | `query` | string | 是 | - | 用户输入 |
-| `mode` | `'knowledge' \| 'data_qa'` | 否 | `knowledge` | 显式模式开关 |
+| `mode` | `'data_qa'` | 是 | - | 显式模式开关；不传或未知值返回 400 |
 | `session_id` | string | 否 | 后端生成 | 聊天会话 ID |
 
 Response:
@@ -460,7 +460,7 @@ type ChatResponse = {
   task_id: string
   intent: string
   result_type: 'answer' | 'search_result' | 'data_qa_result' | string
-  mode?: 'knowledge' | 'data_qa'
+  mode: 'data_qa'
   items: unknown[]
   summary: string
   answer: string
@@ -472,6 +472,44 @@ type ChatBlock =
   | { type: 'markdown'; content: string }
   | { type: 'data_qa_result'; data: DataQaResult }
 ```
+
+Iteration 05 planned extension:
+
+```ts
+type ProductChatMode = 'data_qa' | 'meta_qa'
+
+type MetaCitationSource =
+  | 'meta_metric_info'
+  | 'meta_column_info'
+  | 'meta_table_info'
+  | 'meta_dimension_info'
+  | 'meta_join_info'
+
+type MetaCitation = {
+  kind: 'metric' | 'column' | 'table' | 'dimension' | 'join' | 'value'
+  id: string
+  name: string
+  source: MetaCitationSource
+}
+
+type Iter05ChatBlock =
+  | { type: 'markdown'; content: string }
+  | { type: 'data_qa_result'; data: DataQaResult }
+  | { type: 'meta_citations'; data: MetaCitation[] }
+
+type Iter05ChatResponse = Omit<ChatResponse, 'mode' | 'result_type' | 'blocks'> & {
+  mode: ProductChatMode
+  result_type: 'data_qa_result' | 'meta_answer' | string
+  blocks?: Iter05ChatBlock[]
+}
+```
+
+Iteration 05 mode rules:
+
+- 新产品主入口只展示 `data_qa` 和 `meta_qa`。
+- `knowledge` 不作为兼容 mode 保留；传入 `knowledge` 或未知 mode 返回 400。
+- `meta_qa` 只返回 markdown 解释和 `meta_citations`，不返回 SQL、不执行 SQL、不返回 `DataQaResult.visual`。
+- `meta_citations[].source` 必须来自约定枚举，`kind=value` 归属到 `source="meta_dimension_info"`。
 
 `mode=data_qa` 成功响应示例：
 
@@ -559,7 +597,7 @@ type ChatMessage = {
   content: string
   intent: string
   result_type?: string
-  mode?: 'knowledge' | 'data_qa'
+  mode?: 'data_qa' | 'meta_qa'
   items?: unknown[]
   summary?: string
   answer?: string
@@ -610,10 +648,9 @@ education_brain_front/src/app/components/data-qa-result.tsx
 当前仓库状态：
 
 - 已实现 `/analytics/health`、`/analytics/meta/metrics`、`/analytics/meta/columns`、`/analytics/meta/values`。
-- 尚未实现 `POST /analytics/query`。
 - 当前 `ChatRequest` 尚未包含 `mode`。
 - 当前 `ChatResponse` / `ChatMessage` 尚未包含 `blocks`。
-- 当前前端聊天默认使用 `/chat/query/stream` + SSE。
+- 旧前端聊天曾使用 `/chat/query/stream` + SSE；Iteration 04 后应切换为同步 `POST /chat/query mode=data_qa`。
 
 因此本契约是 Iteration 02-04 的目标接口，不表示当前后端已经全部可用。
 

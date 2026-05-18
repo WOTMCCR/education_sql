@@ -74,11 +74,18 @@ def _run_health_check(
 
 @app.get("/health")
 def health_check():
-    timeout_seconds = get_settings().health_check_timeout_seconds
+    settings = get_settings()
+    timeout_seconds = settings.health_check_timeout_seconds
+    available_checks = {
+        "mongodb": probe_mongodb,
+        "milvus": probe_milvus,
+        "minio": probe_minio,
+    }
+    required = settings.health_required_dependencies or ["mongodb"]
     results = [
-        _run_health_check("mongodb", probe_mongodb, timeout_seconds),
-        _run_health_check("milvus", probe_milvus, timeout_seconds),
-        _run_health_check("minio", probe_minio, timeout_seconds),
+        _run_health_check(name, available_checks[name], timeout_seconds)
+        for name in required
+        if name in available_checks
     ]
     checks = dict(results)
 
@@ -86,4 +93,5 @@ def health_check():
     return {
         "status": "healthy" if all_ok else "degraded",
         "components": checks,
+        "required": list(checks.keys()),
     }

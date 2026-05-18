@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
     health_check_timeout_seconds: float = 1.0
+    health_required_dependencies: Annotated[list[str], NoDecode] = ["mongodb"]
     cors_allow_origins: Annotated[list[str], NoDecode] = []
     cors_allow_methods: Annotated[list[str], NoDecode] = ["*"]
     cors_allow_headers: Annotated[list[str], NoDecode] = ["*"]
@@ -153,9 +154,9 @@ class Settings(BaseSettings):
     def parse_debug_mode(cls, value: object) -> object:
         if isinstance(value, str):
             normalized = value.strip().lower()
-            if normalized in {"release", "prod", "production"}:
+            if normalized in {"0", "false", "no", "off", "release", "prod", "production", "warn", "warning", "info", "error", "critical"}:
                 return False
-            if normalized in {"debug", "dev", "development"}:
+            if normalized in {"1", "true", "yes", "on", "debug", "dev", "development"}:
                 return True
         return value
 
@@ -166,7 +167,7 @@ class Settings(BaseSettings):
             return str(_resolve_project_path(value))
         return value
 
-    @field_validator("cors_allow_origins", "cors_allow_methods", "cors_allow_headers", mode="before")
+    @field_validator("health_required_dependencies", "cors_allow_origins", "cors_allow_methods", "cors_allow_headers", mode="before")
     @classmethod
     def parse_list_settings(cls, value: object) -> object:
         if isinstance(value, str):
