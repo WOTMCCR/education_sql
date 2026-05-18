@@ -206,6 +206,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const dataQaBlocks = message.blocks?.filter(block => block.type === 'data_qa_result') || []
   const markdownBlocks = message.blocks?.filter(block => block.type === 'markdown') || []
   const metaCitationBlocks = message.blocks?.filter(block => block.type === 'meta_citations') || []
+  const knowledgeCitations = message.citations.filter(isKnowledgeCitation)
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${isUser ? 'bg-accent' : 'bg-primary'}`}>
@@ -238,7 +239,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             {isUser ? message.content : <MarkdownContent content={message.content} />}
           </div>
         )}
-        {message.citations.length > 0 && <CitationList citations={message.citations} />}
+        {knowledgeCitations.length > 0 && <CitationList citations={knowledgeCitations} />}
       </div>
     </div>
   )
@@ -264,6 +265,10 @@ function CitationList({ citations }: { citations: Citation[] }) {
       ))}
     </div>
   )
+}
+
+function isKnowledgeCitation(citation: Citation | MetaCitation): citation is Citation {
+  return typeof (citation as Citation).doc_title === 'string' && Array.isArray((citation as Citation).section_path)
 }
 
 const metaCitationKindLabels: Record<string, string> = {

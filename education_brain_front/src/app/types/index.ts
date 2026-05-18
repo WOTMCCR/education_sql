@@ -1,4 +1,4 @@
-import type { ChatBlock, ProductChatMode } from './data-qa'
+import type { ChatBlock, MetaCitation, ProductChatMode } from './data-qa'
 
 // ============ Common ============
 export interface AppError {
@@ -167,7 +167,7 @@ export interface ChatQueryResponse {
   items?: unknown[]
   summary?: string
   answer?: string
-  citations?: Citation[]
+  citations?: Array<Citation | MetaCitation>
   blocks?: ChatBlock[]
 }
 
@@ -183,7 +183,7 @@ export interface ChatMessage {
   content: string
   intent: IntentType
   created_at: string
-  citations: Citation[]
+  citations: Array<Citation | MetaCitation>
   mode?: ChatMode
   result_type?: string
   items?: unknown[]
