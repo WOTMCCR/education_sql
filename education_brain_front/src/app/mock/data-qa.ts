@@ -212,7 +212,7 @@ export const mockStudentEnrollmentDetailResult = {
     ],
     rows: [
       { paid_at: '2026-05-18', student_name: '李晨曦', course_name: 'Python 数据分析就业班', campus_name: '朝阳校区', paid_amount: 6980.0, advisor_name: '王老师' },
-      { paid_at: '2026-05-17', student_name: '周雨桐', course_name: 'AIGC 项目实战营', campus_name: '海淀校区', paid_amount: 4280.0, advisor_name: '赵老师' },
+      { paid_at: '2026-05-17', student_name: '周雨桐', course_name: '数字能力提升课', campus_name: '海淀校区', paid_amount: 4280.0, advisor_name: '赵老师' },
       { paid_at: '2026-05-15', student_name: '陈子墨', course_name: 'Java 全栈进阶班', campus_name: '浦东校区', paid_amount: 7980.0, advisor_name: '刘老师' },
       { paid_at: '2026-05-12', student_name: '黄思源', course_name: 'MySQL 数据库专题课', campus_name: '天河校区', paid_amount: 1980.0, advisor_name: '孙老师' },
       { paid_at: '2026-05-09', student_name: '吴佳宁', course_name: 'Python 数据分析就业班', campus_name: '朝阳校区', paid_amount: 6980.0, advisor_name: '王老师' },

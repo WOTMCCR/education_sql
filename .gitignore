@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.*.local
+*.env
 
 # Python
 __pycache__/
@@ -9,10 +10,15 @@ __pycache__/
 *.egg-info/
 .venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Node
 node_modules/
 dist/
+coverage/
 
 # OS / IDE
 .DS_Store
@@ -23,3 +29,23 @@ Thumbs.db
 # Local verification artifacts
 artifacts/
 test-results/
+
+# Local-only planning and generated reports
+AGENTS.md
+docs/
+education_brain/AGENTS.md
+education_brain/docs/
+education_brain/.codex
+education_brain/knowledge/tests/
+education_brain/scripts/
+education_brain_front/src/imports/
+data_ge/edu-data/docker/
+data_ge/edu-data/tests/
+infra/
+
+# Local service/data runtime state
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.log

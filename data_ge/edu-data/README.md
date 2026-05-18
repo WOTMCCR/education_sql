@@ -318,7 +318,7 @@ uv run -m app.main  # 启动服务
 表说明：
 
 - `sys_user`：平台账号主表，作为职员档案和学员档案的统一账号主体。
-- `org_institution`：机构主表，定义学校、培训机构、教育品牌等办学主体。
+- `org_institution`：机构主表，定义学校、教育机构、教育品牌等办学主体。
 - `org_campus`：校区表，定义机构下属校区或办学点。
 - `org_department`：部门表，定义机构级或校区级部门组织结构。
 - `org_staff_role`：机构职员角色表，定义每个机构自己的职员角色体系。
@@ -366,16 +366,16 @@ uv run -m app.main  # 启动服务
   - `last_login_at` 不为空时，`last_login_at > created_at`
 
 #### `org_institution`
-机构主表，定义学校、培训机构、教育品牌等办学主体信息。
+机构主表，定义学校、教育机构、教育品牌等办学主体信息。
 
 - `id`：主键 ID。
 - `institution_code`：机构编码。
 - `institution_name`：机构名称。
 - `institution_type`：机构类型。枚举值：
-  - `training_center`：培训机构
+  - `training_center`：教育机构
   - `school`：学校
   - `education_brand`：教育品牌
-  - `enterprise_academy`：企业培训中心
+  - `enterprise_academy`：企业学习中心
 - `province`：省。
 - `city`：市。
 - `district`：区。

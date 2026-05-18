@@ -42,8 +42,8 @@ export function mockGetTaskStatus(taskId: string): TaskDetail {
   ]
 
   const subTasks = task.type === 'documents' ? [
-    { file: '尚硅谷大模型技术之Python1.0.docx', status: (task.step >= 4 ? 'completed' : 'running') as TaskStatus, chunks: task.step >= 4 ? 85 : undefined },
-    { file: '尚硅谷大模型技术之MySQL1.0.docx', status: (task.step >= 5 ? 'completed' : task.step >= 4 ? 'running' : 'pending') as TaskStatus },
+    { file: '收入指标说明.docx', status: (task.step >= 4 ? 'completed' : 'running') as TaskStatus, chunks: task.step >= 4 ? 85 : undefined },
+    { file: '校区运营看板.docx', status: (task.step >= 5 ? 'completed' : task.step >= 4 ? 'running' : 'pending') as TaskStatus },
   ] : undefined
 
   if (status === 'completed') delete taskStore[taskId]

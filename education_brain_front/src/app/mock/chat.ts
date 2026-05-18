@@ -10,25 +10,17 @@ export function mockChatQuery(sessionId: string): ChatQueryResponse {
   }
 }
 
-const mockAnswer = `Python 通常通过以下几种方式连接 MySQL：
+const mockAnswer = `当前数据目录包含订单、校区、课程、咨询、出勤、退款和服务工单等经营数据。
 
-1. **pymysql** - 纯 Python 实现的 MySQL 客户端库
-   \`\`\`python
-   import pymysql
-   conn = pymysql.connect(host='localhost', user='root', password='123456', database='test')
-   cursor = conn.cursor()
-   cursor.execute('SELECT * FROM users')
-   \`\`\`
+你可以先关注：
 
-2. **SQLAlchemy** - Python SQL 工具包和 ORM
-   \`\`\`python
-   from sqlalchemy import create_engine
-   engine = create_engine('mysql+pymysql://root:123456@localhost/test')
-   \`\`\`
+1. **收入金额** - 衡量支付成功订单的收入规模。
+2. **支付订单数** - 判断成交活跃度。
+3. **咨询报名转化率** - 观察获客到报名的转化效率。
+4. **出勤率** - 观察课程交付和学员参与情况。
+5. **工单数** - 识别服务压力和履约问题。
 
-3. **mysql-connector-python** - MySQL 官方驱动
-
-建议在生产环境中使用连接池来管理数据库连接，避免频繁创建和销毁连接。`
+如果要查询具体金额、趋势或排名，请切换到数据分析模式。`
 
 export function createMockSSEStream(onEvent: (type: string, data: any) => void): { stop: () => void } {
   let stopped = false
@@ -54,8 +46,8 @@ export function createMockSSEStream(onEvent: (type: string, data: any) => void):
         // Citation
         onEvent('citation', {
           chunk_id: 'chunk_001',
-          doc_title: '尚硅谷大模型技术之Python连接MySQL',
-          section_path: ['第2章 数据库连接', '2.1 pymysql 基础使用'],
+          doc_title: '运营数据字典',
+          section_path: ['指标说明', '收入指标'],
         })
         // Done
         setTimeout(() => {
@@ -83,24 +75,24 @@ export function mockGetHistory(sessionId: string): ChatHistoryResponse {
     session_id: sessionId,
     messages: [
       {
-        task_id: 'chat_task_001', role: 'user', content: 'Python 怎么连接 MySQL？',
+        task_id: 'chat_task_001', role: 'user', content: '我能问哪些收入相关问题？',
         intent: 'knowledge_qa', created_at: '2026-04-17T14:30:00+08:00', citations: [],
       },
       {
         task_id: 'chat_task_001', role: 'assistant',
-        content: 'Python 通常通过 pymysql 或 SQLAlchemy 连接 MySQL。pymysql 是纯 Python 实现，使用 pymysql.connect() 建立连接。',
+        content: '你可以询问收入金额、收入趋势、校区收入排名、退款金额、退款率和客单价等问题。',
         intent: 'knowledge_qa', created_at: '2026-04-17T14:30:06+08:00',
-        citations: [{ chunk_id: 'chunk_001', doc_title: '尚硅谷大模型技术之Python连接MySQL', section_path: ['第2章 数据库连接', '2.1 pymysql 基础使用'] }],
+        citations: [{ chunk_id: 'chunk_001', doc_title: '运营数据字典', section_path: ['指标说明', '收入指标'] }],
       },
       {
-        task_id: 'chat_task_002', role: 'user', content: '如何使用连接池？',
+        task_id: 'chat_task_002', role: 'user', content: '作为校区负责人每天该看哪些指标？',
         intent: 'knowledge_qa', created_at: '2026-04-17T14:31:00+08:00', citations: [],
       },
       {
         task_id: 'chat_task_002', role: 'assistant',
-        content: '建议使用 DBUtils 的 PooledDB 类来实现连接池。它可以管理多个数据库连接，避免频繁创建和销毁连接带来的性能开销。',
+        content: '建议每天关注收入金额、支付订单数、咨询报名转化率、出勤率和服务工单数，并结合校区维度查看异常波动。',
         intent: 'knowledge_qa', created_at: '2026-04-17T14:31:08+08:00',
-        citations: [{ chunk_id: 'chunk_002', doc_title: '尚硅谷大模型技术之Python连接MySQL', section_path: ['第2章 数据库连接', '2.2 连接池配置'] }],
+        citations: [{ chunk_id: 'chunk_002', doc_title: '运营数据字典', section_path: ['指标说明', '运营看板'] }],
       },
       {
         task_id: 'chat_task_003', role: 'user', content: '哪个校区收入最高？',

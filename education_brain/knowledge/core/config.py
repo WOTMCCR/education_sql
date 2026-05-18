@@ -55,9 +55,9 @@ class Settings(BaseSettings):
     # ── 教育问数依赖 ──
     analytics_mysql_host: str = "127.0.0.1"
     analytics_mysql_port: int = 3306
-    analytics_mysql_user: str = "root"
-    analytics_mysql_password: str = Field("123321", repr=False)
-    analytics_mysql_database: str = "edu"
+    analytics_mysql_user: str = ""
+    analytics_mysql_password: str = Field("", repr=False)
+    analytics_mysql_database: str = ""
     analytics_mysql_timeout_seconds: float = 2.0
 
     analytics_qdrant_url: str = "http://127.0.0.1:6333"

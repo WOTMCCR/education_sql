@@ -9,7 +9,7 @@ class KnowledgeDocument(BaseModel):
     这个模型存的是"整个文件"的信息，而不是分块后的内容。
     分块结果存在 KnowledgeChunk 中，通过 doc_id 关联。
 
-    示例：导入 "尚硅谷大模型技术之Python1.0.docx" 时，
+    示例：导入 "运营数据字典.docx" 时，
     会创建一条 KnowledgeDocument（记录文件级元数据）
     + 若干条 KnowledgeChunk（记录分块后的文本片段）
     """
@@ -52,7 +52,7 @@ class SourceMapping(BaseModel):
     """来源映射表 — 解决"文档与课程目录命名体系不同"的问题
 
     课程目录的编码是 general_purpose_programming_foundation_m1，
-    文档的文件名是 尚硅谷大模型技术之Python1.0.docx，
+    文档的文件名是 运营数据字典.docx，
     两者之间没有天然主键。
 
     这张表建立它们之间的映射关系：

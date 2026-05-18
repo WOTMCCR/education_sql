@@ -16,9 +16,9 @@ const mockEntries = {
     current_path: '课程文档',
     parent_path: '',
     entries: [
-      { name: '尚硅谷大模型技术之Python1.0.docx', path: 'data/数据/课程文档/尚硅谷大模型技术之Python1.0.docx', nav_path: '课程文档/尚硅谷大模型技术之Python1.0.docx', is_dir: false, children_count: 0 },
-      { name: '尚硅谷大模型技术之MySQL1.0.docx', path: 'data/数据/课程文档/尚硅谷大模型技术之MySQL1.0.docx', nav_path: '课程文档/尚硅谷大模型技术之MySQL1.0.docx', is_dir: false, children_count: 0 },
-      { name: '尚硅谷大模型技术之Linux1.0.docx', path: 'data/数据/课程文档/尚硅谷大模型技术之Linux1.0.docx', nav_path: '课程文档/尚硅谷大模型技术之Linux1.0.docx', is_dir: false, children_count: 0 },
+      { name: '收入指标说明.docx', path: 'data/数据/课程文档/收入指标说明.docx', nav_path: '课程文档/收入指标说明.docx', is_dir: false, children_count: 0 },
+      { name: '校区运营看板.docx', path: 'data/数据/课程文档/校区运营看板.docx', nav_path: '课程文档/校区运营看板.docx', is_dir: false, children_count: 0 },
+      { name: '学员履约分析.docx', path: 'data/数据/课程文档/学员履约分析.docx', nav_path: '课程文档/学员履约分析.docx', is_dir: false, children_count: 0 },
     ],
   },
   '项目文档': {

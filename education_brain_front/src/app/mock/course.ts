@@ -6,7 +6,7 @@ export function mockGetCourses(_params: { keyword?: string; page?: number; page_
       {
         series_code: 'general_purpose_programming_foundation',
         series_title: 'Python 编程基础',
-        description: '面向大模型技术学习的 Python 编程基础课程。涵盖变量、流程控制、函数、面向对象等核心内容。',
+        description: '面向数据团队的自动化分析基础模块，覆盖数据处理、脚本编排和报表自动化。',
         category_path: ['编程基础', 'Python'],
         audience: ['在校生', '求职者'],
         goal_tags: ['Python 基础', '编程能力'],
@@ -17,13 +17,13 @@ export function mockGetCourses(_params: { keyword?: string; page?: number; page_
           { module_code: 'gppf_m3', module_title: 'Python 文件与异常', lesson_count: 4, credit_hours: 8, description: '文件读写、异常处理。' },
         ],
         related_documents: [
-          { doc_id: 'doc_python_001', doc_title: '尚硅谷大模型技术之Python1.0' },
+          { doc_id: 'doc_ops_001', doc_title: '运营数据处理手册' },
         ],
       },
       {
         series_code: 'database_foundation',
         series_title: 'MySQL 数据库基础',
-        description: '面向大模型技术学习的 MySQL 数据库基础课程。',
+        description: '面向运营分析的数据建模模块，覆盖指标表、维度表和查询性能基础。',
         category_path: ['数据库', 'MySQL'],
         audience: ['在校生', '开发者'],
         goal_tags: ['SQL 基础', '数据库设计'],
@@ -33,7 +33,7 @@ export function mockGetCourses(_params: { keyword?: string; page?: number; page_
           { module_code: 'dbf_m2', module_title: '表设计与索引', lesson_count: 6, credit_hours: 12, description: '范式、索引优化。' },
         ],
         related_documents: [
-          { doc_id: 'doc_mysql_001', doc_title: '尚硅谷大模型技术之MySQL1.0' },
+          { doc_id: 'doc_modeling_001', doc_title: '经营数据建模手册' },
         ],
       },
       {
