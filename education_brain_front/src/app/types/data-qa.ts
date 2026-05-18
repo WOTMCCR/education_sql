@@ -156,7 +156,7 @@ export interface DataQaChatResponse {
   task_id: string
   intent: string
   result_type: 'answer' | 'search_result' | 'data_qa_result' | (string & {})
-  mode?: 'knowledge' | 'data_qa'
+  mode?: 'data_qa'
   items: unknown[]
   summary: string
   answer: string

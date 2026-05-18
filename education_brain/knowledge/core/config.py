@@ -6,23 +6,17 @@
 """
 import json
 from functools import cache
-from pathlib import Path
 from typing import Annotated
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
+from pathlib import Path
+
+
 PACKAGE_DIR = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = PACKAGE_DIR.parent
 _ENV_FILE = PACKAGE_DIR / ".env"
-
-
-def _resolve_project_path(value: str | Path) -> Path:
-    path = Path(value).expanduser()
-    if path.is_absolute():
-        return path
-    return PROJECT_ROOT / path
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -79,75 +73,8 @@ class Settings(BaseSettings):
     analytics_embedding_timeout_seconds: float = 5.0
     analytics_embedding_mode: str = "tei"
 
-    # ── Milvus ──
-    milvus_uri: str = "http://localhost:19530"
-    milvus_user: str = ""
-    milvus_password: str = Field("", repr=False)
-    milvus_token: str = Field("", repr=False)
-    milvus_db_name: str = ""
-    # 文档 chunk 向量检索的 collection
-    milvus_collection: str = "edu_chunks"
-
-    # ── MinIO ──
-    minio_endpoint: str = "127.0.0.1:9000"
-    minio_access_key: str = "minioadmin"
-    minio_secret_key: str = Field("minioadmin", repr=False)
-    minio_bucket: str = "education-knowledge"
-    minio_secure: bool = False
-
-    # ── BGE 模型 ──
-    bge_m3_path: str = "BAAI/bge-m3"
-    bge_reranker_path: str = "BAAI/bge-reranker-v2-m3"
-    bge_device: str = "cuda"
-    bge_fp16: bool = True
     embedding_dim: int = 1024
 
-    # ── 文档分块参数 ──
-    max_content_length: int = 2000
-    min_content_length: int = 500
-    overlap_sentences: int = 1
-    embedding_batch_size: int = 8
-
-    # ── 向量检索 ──
-    query_dense_weight: float = 0.5
-    query_sparse_weight: float = 0.5
-    query_search_limit: int = 5
-
-    # ── HyDE ──
-    # 为空时 fallback 到 llm_model
-    hyde_model: str = ""
-    enable_hyde: bool = True
-
-
-    # ── RRF 融合 ──
-    rrf_k: int = 60
-    rrf_max_results: int = 10
-
-    # ── Rerank ──
-    rerank_min_top_k: int = 3
-    rerank_max_top_k: int = 10
-    rerank_gap_abs: float = 0.5
-    rerank_gap_ratio: float = 0.25
-    rerank_min_score: float | None = None
-    enable_rerank: bool = False
-
-    # ── 答案生成 ──
-    max_context_chars: int = 12000
-    answer_max_context_chars: int = 3000
-    answer_max_tokens: int = 512
-
-    # ── 流式输出 ──
-    stream_timeout_seconds: float = 180.0       # 单个流式任务总超时
-    stream_keepalive_seconds: float = 15.0      # SSE 空闲心跳间隔
-    stream_task_ttl_seconds: float = 300.0      # 已完成任务的清理 TTL
-
-
-    # ── 数据路径 ──
-    data_dir: str = "data/数据"
-
-    # ── docx 转换 ──
-    # markitdown 失败时是否自动尝试 pandoc
-    docx_fallback_pandoc: bool = True
 
     @field_validator("debug", mode="before")
     @classmethod
@@ -158,13 +85,6 @@ class Settings(BaseSettings):
                 return False
             if normalized in {"1", "true", "yes", "on", "debug", "dev", "development"}:
                 return True
-        return value
-
-    @field_validator("data_dir", mode="before")
-    @classmethod
-    def normalize_data_dir(cls, value: object) -> object:
-        if isinstance(value, (str, Path)):
-            return str(_resolve_project_path(value))
         return value
 
     @field_validator("health_required_dependencies", "cors_allow_origins", "cors_allow_methods", "cors_allow_headers", mode="before")
@@ -180,11 +100,6 @@ class Settings(BaseSettings):
         return value
 
     @property
-    def minio_base_url(self) -> str:
-        scheme = "https" if self.minio_secure else "http"
-        return f"{scheme}://{self.minio_endpoint}"
-
-    @property
     def analytics_mysql_connect_kwargs(self) -> dict[str, object]:
         return {
             "host": self.analytics_mysql_host,
@@ -198,25 +113,6 @@ class Settings(BaseSettings):
     @property
     def effective_answer_model(self) -> str:
         return self.answer_model or self.llm_model
-
-    @property
-    def effective_hyde_model(self) -> str:
-        return self.hyde_model or self.llm_model
-
-    @property
-    def effective_milvus_token(self) -> str:
-        if self.milvus_token:
-            return self.milvus_token
-        if self.milvus_user and self.milvus_password:
-            return f"{self.milvus_user}:{self.milvus_password}"
-        return ""
-
-    @property
-    def data_dir_path(self) -> Path:
-        return Path(self.data_dir)
-
-    def resolve_path(self, value: str | Path) -> Path:
-        return _resolve_project_path(value)
 
 IMAGE_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"})
 

@@ -1,64 +1,17 @@
-import { useMock, http, resolveApiUrl } from './http'
-import { mockChatQuery, createMockSSEStream, mockGetHistory } from '../mock/chat'
+import { useMock, http } from './http'
+import { mockGetHistory } from '../mock/chat'
 import { mockDataQaChatResponse } from '../mock/data-qa'
-import type { ChatQueryResponse, ChatHistoryResponse } from '../types'
+import type { ChatBlock, ChatHistoryResponse, ChatMessage, ChatQueryResponse, DataQaResult } from '../types'
 
-const enableSseDebug = import.meta.env.DEV || import.meta.env.VITE_DEBUG_HTTP === 'true'
-
-export async function chatQuery(sessionId: string, question: string, mode: 'knowledge' | 'data_qa' = 'knowledge', docType?: string): Promise<ChatQueryResponse> {
+export async function chatQuery(sessionId: string, question: string): Promise<ChatQueryResponse> {
   if (useMock) {
-    return mode === 'data_qa'
-      ? mockDataQaChatResponse(question)
-      : mockChatQuery(sessionId)
-  }
-  void docType
-
-  if (mode === 'data_qa') {
-    return http<ChatQueryResponse>('POST', '/chat/query', { body: { session_id: sessionId, query: question, mode } })
+    return mockDataQaChatResponse(question)
   }
 
-  return http<ChatQueryResponse>('POST', '/chat/query/stream', { body: { session_id: sessionId, query: question } })
-}
-
-export function connectSSE(taskId: string, onEvent: (type: string, data: any) => void): { stop: () => void } {
-  if (useMock) return createMockSSEStream(onEvent)
-
-  const url = resolveApiUrl(`/chat/stream/${taskId}`)
-  if (enableSseDebug) {
-    console.debug('[sse] → open', { taskId, url })
-  }
-
-  const es = new EventSource(url)
-  const handler = (type: string) => (e: MessageEvent) => {
-    try {
-      const data = JSON.parse(e.data)
-      if (enableSseDebug) {
-        console.debug('[sse] ← event', { taskId, type, data })
-      }
-      onEvent(type, data)
-    } catch {
-      if (enableSseDebug) {
-        console.debug('[sse] ← raw', { taskId, type, data: e.data })
-      }
-      onEvent(type, { content: e.data })
-    }
-  }
-  ;['status', 'thinking', 'token', 'citation', 'done', 'error'].forEach(t => es.addEventListener(t, handler(t)))
-  es.onerror = () => {
-    if (enableSseDebug) {
-      console.error('[sse] × error', { taskId, url })
-    }
-    onEvent('error', { message: '流连接已中断' })
-    es.close()
-  }
-  return {
-    stop: () => {
-      if (enableSseDebug) {
-        console.debug('[sse] ← close', { taskId, url })
-      }
-      es.close()
-    },
-  }
+  const response = await http<ChatQueryResponse>('POST', '/chat/query', {
+    body: { session_id: sessionId, query: question, mode: 'data_qa' },
+  })
+  return normalizeChatResponse(response)
 }
 
 export async function getChatHistory(sessionId: string): Promise<ChatHistoryResponse> {
@@ -69,19 +22,94 @@ export async function getChatHistory(sessionId: string): Promise<ChatHistoryResp
 
   return {
     session_id: response.session_id || sessionId,
-    messages: (response.messages || []).map((message: any) => ({
-      task_id: message.task_id || '',
-      role: message.role,
-      content: message.content || message.answer || '',
-      intent: message.intent || 'knowledge',
-      mode: message.mode,
-      result_type: message.result_type,
-      items: Array.isArray(message.items) ? message.items : [],
-      summary: message.summary || '',
-      answer: message.answer || '',
-      blocks: Array.isArray(message.blocks) ? message.blocks : [],
-      created_at: message.created_at,
-      citations: Array.isArray(message.citations) ? message.citations : [],
-    })),
+    messages: (response.messages || []).map(normalizeHistoryMessage),
   }
+}
+
+function normalizeChatResponse(response: ChatQueryResponse): ChatQueryResponse {
+  return {
+    ...response,
+    blocks: normalizeChatBlocks(response),
+  }
+}
+
+function normalizeHistoryMessage(message: any): ChatMessage {
+  const normalized: ChatMessage = {
+    task_id: message.task_id || '',
+    role: message.role,
+    content: message.content || message.answer || '',
+    intent: message.intent || 'data_qa',
+    mode: message.mode,
+    result_type: message.result_type,
+    items: Array.isArray(message.items) ? message.items : [],
+    summary: message.summary || '',
+    answer: message.answer || '',
+    blocks: normalizeChatBlocks(message),
+    created_at: message.created_at,
+    citations: Array.isArray(message.citations) ? message.citations : [],
+  }
+
+  return normalized
+}
+
+function normalizeChatBlocks(payload: any): ChatBlock[] {
+  const blocks = Array.isArray(payload.blocks)
+    ? payload.blocks.filter(isChatBlock)
+    : []
+
+  if (blocks.some(block => block.type === 'data_qa_result')) {
+    return blocks
+  }
+
+  const dataQaResult = findDataQaResult(payload)
+  if (!dataQaResult) {
+    return blocks
+  }
+
+  return [
+    ...blocks,
+    { type: 'data_qa_result', data: dataQaResult },
+  ]
+}
+
+function isChatBlock(block: any): block is ChatBlock {
+  if (!block || typeof block !== 'object') return false
+  if (block.type === 'markdown') return typeof block.content === 'string'
+  if (block.type === 'data_qa_result') return isDataQaResult(block.data)
+  return false
+}
+
+function findDataQaResult(payload: any): DataQaResult | null {
+  const candidates = [
+    payload?.data_qa_result,
+    payload?.dataQaResult,
+    payload?.result,
+    payload?.data,
+    payload,
+    ...(Array.isArray(payload?.items) ? payload.items : []),
+  ]
+
+  return candidates.find(isDataQaResult) || null
+}
+
+function isDataQaResult(value: any): value is DataQaResult {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    value.mode === 'data_qa' &&
+    typeof value.answer === 'string' &&
+    value.intent &&
+    typeof value.intent === 'object' &&
+    value.visual &&
+    typeof value.visual === 'object' &&
+    Array.isArray(value.visual.columns) &&
+    Array.isArray(value.visual.rows) &&
+    value.explain &&
+    typeof value.explain === 'object' &&
+    Array.isArray(value.explain.metrics) &&
+    value.trace &&
+    typeof value.trace === 'object' &&
+    Array.isArray(value.trace.stages) &&
+    Array.isArray(value.warnings),
+  )
 }

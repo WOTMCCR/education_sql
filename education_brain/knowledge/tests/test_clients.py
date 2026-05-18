@@ -1,7 +1,5 @@
 from types import SimpleNamespace
 
-import httpx
-
 from knowledge.core import clients
 
 
@@ -30,19 +28,6 @@ def test_get_openai_uses_timeout_for_local_base_url(monkeypatch):
         clients.get_openai.cache_clear()
 
     http_client = captured["http_client"]
-    assert isinstance(http_client, httpx.Client)
     assert captured["max_retries"] == 0
     assert http_client.timeout.connect == 3.0
     assert http_client.timeout.read == 3.0
-
-
-def test_resolve_bge_runtime_falls_back_to_cpu_when_cuda_unavailable(monkeypatch):
-    monkeypatch.setattr(clients.torch.cuda, "is_available", lambda: False)
-
-    device, use_fp16 = clients._resolve_bge_runtime(
-        device="cuda",
-        use_fp16=True,
-    )
-
-    assert device == "cpu"
-    assert use_fp16 is False

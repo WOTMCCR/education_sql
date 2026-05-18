@@ -155,8 +155,8 @@ export interface BrowseResponse {
 }
 
 // ============ Chat ============
-export type IntentType = 'course_intro' | 'question_search' | 'knowledge' | 'doc_search' | 'knowledge_qa' | 'data_qa'
-export type ChatMode = 'knowledge' | 'data_qa'
+export type IntentType = 'data_qa'
+export type ChatMode = 'data_qa'
 
 export interface ChatQueryResponse {
   task_id: string

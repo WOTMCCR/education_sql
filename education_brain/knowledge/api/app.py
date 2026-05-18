@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from knowledge.core.clients import probe_milvus, probe_minio, probe_mongodb
+from knowledge.core.clients import probe_mongodb
 from knowledge.core.config import get_settings
 
 # 把一个 async 生成器函数变成一个异步上下文管理器。
@@ -44,13 +44,9 @@ if settings.cors_allow_origins:
     )
 
 
-from knowledge.api.routes.ingest import router as ingest_router
-from knowledge.api.routes.search import router as search_router
 from knowledge.api.routes.chat import router as chat_router
 from knowledge.api.routes.analytics import router as analytics_router
 
-app.include_router(ingest_router)
-app.include_router(search_router)
 app.include_router(chat_router)
 app.include_router(analytics_router)
 
@@ -78,8 +74,6 @@ def health_check():
     timeout_seconds = settings.health_check_timeout_seconds
     available_checks = {
         "mongodb": probe_mongodb,
-        "milvus": probe_milvus,
-        "minio": probe_minio,
     }
     required = settings.health_required_dependencies or ["mongodb"]
     results = [
