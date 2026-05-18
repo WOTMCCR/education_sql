@@ -1,6 +1,6 @@
 # Environment Setup
 
-> Updated by env-preflight skill. Last updated: 2026-05-18 18:10:44 CST.
+> Updated by env-preflight skill. Last updated: 2026-05-18 18:16:19 CST.
 
 ## Tech Stack
 
@@ -89,6 +89,15 @@ Python 3.12 backend and data generator, Vite/React frontend, Docker Compose data
 | `generate.main --profile smoke` | PASS | Generated all business layers and passed generator validation. |
 | `build_meta --recreate` | PASS | Rebuilt 66 tables, 738 columns, 14 metrics, 21 joins, 17 dimensions, 738 Qdrant column vectors, 14 Qdrant metric vectors, and 1342 ES dimension values. |
 | `SMOKE_STAGE=meta` | PASS | Passed 5 checks after rebuild. |
+
+### Iteration 05B Preflight Review: 2026-05-18 18:16:19 CST
+
+| Category | Check | Status | Notes |
+|----------|-------|--------|-------|
+| Git | Worktree after 05A completion commit | PASS | Branch `main`; no uncommitted changes before 05B preflight. |
+| Workflow | Analytics health after rebuild | PASS | `/analytics/health` returned `healthy` with expected meta counts. |
+| Workflow | Iteration 04 e2e after rebuild | PASS | `cd education_brain && SMOKE_STAGE=e2e ./knowledge/tests/smoke_test_data_qa.sh` passed 6 checks. |
+| Prerequisite | 05A bootstrap | PASS | `init_db -> generate --profile smoke -> build_meta --recreate -> SMOKE_STAGE=meta` completed before 05B. |
 
 ## Verified Commands
 

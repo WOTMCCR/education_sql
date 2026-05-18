@@ -15,5 +15,6 @@
 - Global `/health` defaults to `HEALTH_REQUIRED_DEPENDENCIES=mongodb`; Milvus `19530` and MinIO `9000` are old document/RAG dependencies scheduled for deletion in Iteration 04 and should not be required for current analytics + chat history integration.
 - Verified test commands: `cd education_brain && PYTHONPATH=. knowledge/.venv/bin/python -m pytest knowledge/tests/test_data_qa_pipeline.py knowledge/tests/test_llm_nl2sql_pipeline.py -q`; `cd education_brain_front && npm test && npm run build`.
 - Iteration 05A preflight on 2026-05-18 verified `SMOKE_STAGE=meta` against the running stack before destructive bootstrap rebuilds.
+- Iteration 05B preflight on 2026-05-18 verified `SMOKE_STAGE=e2e` after the 05A bootstrap rebuild.
 - TEI CPU `cpu-1.9` with the local `bge-large-zh-v1.5` Candle backend is the verified analytics embedding path. `cpu-1.8` could start but panicked on real `/embed` requests on this WSL host.
 - Full environment notes and incident log: `docs/env-setup.md`.
