@@ -6,6 +6,7 @@
 
 ```text
 docs/education-data-qa/
+  api-contract.md
   standard/
     insight.md
   testing/
@@ -29,6 +30,7 @@ docs/education-data-qa/
 ## 文档职责
 
 - `standard/insight.md`：长期标准设计，记录系统目标、架构约束、核心数据结构和技术边界。
+- `api-contract.md`：问数前后端 API 契约，固定 `DataQaResult`、聊天 block 和 mock 数据基准，供前端先行开发。
 - `testing/smoke-test-metrics.md`：跨迭代 smoke test 标准，记录每轮必须通过的真实请求级验收。
 - `iterations/*/goal.md`：**agent 执行入口**。结构化的迭代指令，包含 Pre-flight（上一轮收束验证）、Goal、Tasks（含 subagent 并行/串行标注）、Validation、Review、Guardrails。开发时以 goal.md 为主驱动。
 - `iterations/*/requirements-and-plan.md`：每次迭代的范围、交付物、验收标准和注意事项。

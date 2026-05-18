@@ -53,7 +53,7 @@ infra/education-data-qa/
 - `docker-compose.yaml` 参考 `/home/ccr/local-docker/nl2sql-env/docker-compose.yaml`。
 - ES 镜像继续基于 `elasticsearch:8.19.10`，安装 `elasticsearch-analysis-ik-8.19.10.zip`。
 - Qdrant 使用 `qdrant/qdrant:v1.16`。
-- Embedding 使用 `ghcr.io/huggingface/text-embeddings-inference:cpu-1.8`。
+- Embedding 使用 `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9`。
 - BGE 模型文件体积较大，不提交到仓库；通过环境变量挂载本机模型目录。
 - `volumes/` 只保留 `.gitignore`，运行数据不纳入 Git。
 
@@ -65,7 +65,7 @@ infra/education-data-qa/
 | Elasticsearch | 本地 Dockerfile + IK | 9200 | 维度取值召回 |
 | Kibana | `kibana:8.19.10` | 5601 | 调试 ES 索引 |
 | Qdrant | `qdrant/qdrant:v1.16` | 6333 / 6334 | 字段和指标向量召回 |
-| Embedding | TEI CPU 1.8 | 8081 | 中文 embedding 服务 |
+| Embedding | TEI CPU 1.9 | 8081 | 中文 embedding 服务 |
 
 ### MySQL 口径
 
@@ -176,7 +176,7 @@ Iteration 01 需要先固定诊断和召回接口，后续 smoke test 与 pipeli
 
 ```bash
 cd education_brain
-uv run python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate
+PYTHONPATH=. knowledge/.venv/bin/python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate
 ```
 
 - 默认读取 `data_ge/edu-data/meta/education_meta.yaml`。
@@ -200,10 +200,10 @@ uv run -m generate.main --profile smoke
 
 # 3. 构建问数 meta 和检索索引
 cd ../../education_brain
-uv run python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate
+PYTHONPATH=. knowledge/.venv/bin/python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate
 
 # 4. 启动后端并跑 smoke
-uv run uvicorn knowledge.api.app:app --host 0.0.0.0 --port 8000
+PYTHONPATH=. knowledge/.venv/bin/uvicorn knowledge.api.app:app --host 0.0.0.0 --port 8000
 SMOKE_STAGE=meta ./knowledge/tests/smoke_test_data_qa.sh
 ```
 

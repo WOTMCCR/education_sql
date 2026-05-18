@@ -57,6 +57,27 @@ class Settings(BaseSettings):
     mongo_uri: str = "mongodb://localhost:27017"
     mongo_db: str = "education_knowledge"
 
+    # ── 教育问数依赖 ──
+    analytics_mysql_host: str = "127.0.0.1"
+    analytics_mysql_port: int = 3306
+    analytics_mysql_user: str = "root"
+    analytics_mysql_password: str = Field("123321", repr=False)
+    analytics_mysql_database: str = "edu"
+    analytics_mysql_timeout_seconds: float = 2.0
+
+    analytics_qdrant_url: str = "http://127.0.0.1:6333"
+    analytics_qdrant_column_collection: str = "edu_column_info"
+    analytics_qdrant_metric_collection: str = "edu_metric_info"
+    analytics_qdrant_timeout_seconds: float = 2.0
+
+    analytics_es_url: str = "http://127.0.0.1:9200"
+    analytics_es_dimension_values_index: str = "edu_dimension_values"
+    analytics_es_timeout_seconds: float = 2.0
+
+    analytics_embedding_url: str = "http://127.0.0.1:8081"
+    analytics_embedding_timeout_seconds: float = 5.0
+    analytics_embedding_mode: str = "tei"
+
     # ── Milvus ──
     milvus_uri: str = "http://localhost:19530"
     milvus_user: str = ""
@@ -161,6 +182,17 @@ class Settings(BaseSettings):
     def minio_base_url(self) -> str:
         scheme = "https" if self.minio_secure else "http"
         return f"{scheme}://{self.minio_endpoint}"
+
+    @property
+    def analytics_mysql_connect_kwargs(self) -> dict[str, object]:
+        return {
+            "host": self.analytics_mysql_host,
+            "port": self.analytics_mysql_port,
+            "user": self.analytics_mysql_user,
+            "password": self.analytics_mysql_password,
+            "database": self.analytics_mysql_database,
+            "charset": "utf8mb4",
+        }
 
     @property
     def effective_answer_model(self) -> str:

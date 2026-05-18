@@ -66,7 +66,7 @@ Stage A 全部完成后执行。
 **Task 5: Meta 构建脚本** `[subagent: single]`
 - 文件范围：`education_brain/knowledge/analytics/`
 - 交付：`build_meta.py` 完成 YAML → MySQL → Qdrant → ES 三阶段幂等构建
-- 验收：`cd education_brain && uv run python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate` 成功并输出 counts
+- 验收：`cd education_brain && PYTHONPATH=. knowledge/.venv/bin/python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate` 成功并输出 counts
 - stop/ask：embedding 服务不可用
 - 详见 development-plan.md Task 5
 

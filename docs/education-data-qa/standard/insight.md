@@ -604,7 +604,7 @@ type DataQaResult = {
 | MySQL 8.0+ | 必须 | 业务数据 + meta 表 | `edu-data` 已有，问数系统使用只读账号连接 |
 | Qdrant v1.16 | 必须 | 字段和指标的语义向量召回 | `/home/ccr/local-docker/nl2sql-env` 暴露 HTTP `6333`、gRPC `6334`；两个 collection：`edu_column_info`、`edu_metric_info` |
 | Elasticsearch 8.19.10 | 必须 | 维度字段取值全文召回 | `/home/ccr/local-docker/nl2sql-env/elasticsearch/Dockerfile` 已安装 `elasticsearch-analysis-ik-8.19.10.zip`。若环境暂无 IK，可先用 `standard` analyzer 降级，但中文召回质量会下降 |
-| Embedding 服务 | 必须 | 向量化文本 | 参考 `ghcr.io/huggingface/text-embeddings-inference:cpu-1.8`，端口 `8081`，本地模型 `/home/ccr/local-docker/nl2sql-env/embedding/bge-large-zh-v1.5` |
+| Embedding 服务 | 必须 | 向量化文本 | 参考 `ghcr.io/huggingface/text-embeddings-inference:cpu-1.9`，端口 `8081`，本地模型 `/home/ccr/local-docker/nl2sql-env/embedding/bge-large-zh-v1.5`；`cpu-1.8` 在当前 WSL 环境真实 `/embed` 会触发 TEI 内部 queue panic |
 | LLM | 必须 | 关键词扩展、表/指标过滤、SQL 生成、SQL 纠错 | DeepSeek / OpenAI 兼容接口 |
 | jieba | 必须 | 中文分词和关键词提取 | 需加载教育业务自定义词典 |
 

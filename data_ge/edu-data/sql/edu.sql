@@ -1539,3 +1539,112 @@ CREATE TABLE ugc_moderation_task (
         moderator_user_id
     ) REFERENCES sys_user (id)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '内容审核任务表';
+
+CREATE TABLE meta_table_info (
+    table_name VARCHAR(128) PRIMARY KEY,
+    domain_name VARCHAR(128) NULL,
+    business_name VARCHAR(255) NULL,
+    description TEXT NULL,
+    aliases_json JSON NULL,
+    row_count BIGINT NULL,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '问数表元信息';
+
+CREATE TABLE meta_column_info (
+    full_name VARCHAR(255) PRIMARY KEY,
+    table_name VARCHAR(128) NOT NULL,
+    column_name VARCHAR(128) NOT NULL,
+    ordinal_position INT NOT NULL,
+    data_type VARCHAR(128) NOT NULL,
+    column_type VARCHAR(255) NOT NULL,
+    is_nullable TINYINT NOT NULL DEFAULT 1,
+    column_key VARCHAR(32) NULL,
+    description TEXT NULL,
+    business_role VARCHAR(64) NULL,
+    aliases_json JSON NULL,
+    enum_values_json JSON NULL,
+    is_metric_candidate TINYINT NOT NULL DEFAULT 0,
+    is_dimension_candidate TINYINT NOT NULL DEFAULT 0,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_meta_column_table (table_name),
+    KEY idx_meta_column_column (column_name)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '问数字段元信息';
+
+CREATE TABLE meta_metric_info (
+    metric_id VARCHAR(128) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    metric_type VARCHAR(64) NOT NULL DEFAULT 'aggregate',
+    formula TEXT NOT NULL,
+    base_table VARCHAR(128) NOT NULL,
+    time_column VARCHAR(255) NULL,
+    unit VARCHAR(64) NULL,
+    default_filters_json JSON NULL,
+    allowed_dimensions_json JSON NULL,
+    relevant_columns_json JSON NULL,
+    aliases_json JSON NULL,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_meta_metric_base_table (base_table)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '问数指标元信息';
+
+CREATE TABLE meta_column_metric (
+    metric_id VARCHAR(128) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    relation_type VARCHAR(64) NOT NULL DEFAULT 'relevant',
+    weight DECIMAL(8, 4) NOT NULL DEFAULT 1,
+    description TEXT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (metric_id, full_name),
+    CONSTRAINT fk_meta_column_metric_metric FOREIGN KEY (
+        metric_id
+    ) REFERENCES meta_metric_info (metric_id)
+    ON DELETE CASCADE,
+    CONSTRAINT fk_meta_column_metric_column FOREIGN KEY (
+        full_name
+    ) REFERENCES meta_column_info (full_name)
+    ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '问数指标字段关系';
+
+CREATE TABLE meta_join_info (
+    join_id VARCHAR(128) PRIMARY KEY,
+    left_table VARCHAR(128) NOT NULL,
+    left_column VARCHAR(128) NOT NULL,
+    right_table VARCHAR(128) NOT NULL,
+    right_column VARCHAR(128) NOT NULL,
+    join_type VARCHAR(64) NOT NULL DEFAULT 'many_to_one',
+    relationship_type VARCHAR(64) NULL,
+    path_group VARCHAR(128) NULL,
+    description TEXT NULL,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_meta_join_left (left_table, left_column),
+    KEY idx_meta_join_right (right_table, right_column),
+    KEY idx_meta_join_group (path_group)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '问数表关联路径';
+
+CREATE TABLE meta_dimension_info (
+    dimension_id VARCHAR(128) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    table_name VARCHAR(128) NOT NULL,
+    column_name VARCHAR(128) NOT NULL,
+    key_column VARCHAR(128) NULL,
+    time_grain VARCHAR(32) NULL,
+    value_sql TEXT NULL,
+    aliases_json JSON NULL,
+    enabled TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_meta_dimension_field (table_name, column_name)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COMMENT = '问数维度元信息';

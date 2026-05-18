@@ -21,13 +21,16 @@ from functools import cache
 from urllib.parse import urlparse
 
 import httpx
+import pymysql
 import torch
 import urllib3
+from elasticsearch import Elasticsearch
 from minio import Minio
 from openai import AsyncOpenAI, OpenAI
 from pymilvus import MilvusClient
 from pymongo import MongoClient
 from pymongo.database import Database
+from qdrant_client import QdrantClient
 
 from knowledge.core.config import get_settings
 
@@ -127,6 +130,63 @@ def get_minio() -> Minio:
         secure=s.minio_secure,
     )
 
+
+def get_analytics_mysql_connection():
+    """教育问数 MySQL 连接。
+
+    PyMySQL connection 是有状态对象，不在这里做全局缓存；调用方负责 close。
+    """
+    s = get_settings()
+    return pymysql.connect(
+        **s.analytics_mysql_connect_kwargs,
+        connect_timeout=s.analytics_mysql_timeout_seconds,
+        read_timeout=s.analytics_mysql_timeout_seconds,
+        write_timeout=s.analytics_mysql_timeout_seconds,
+    )
+
+
+@cache
+def get_analytics_qdrant_client() -> QdrantClient:
+    """教育问数 Qdrant 客户端。"""
+    s = get_settings()
+    return QdrantClient(
+        url=s.analytics_qdrant_url,
+        timeout=s.analytics_qdrant_timeout_seconds,
+        trust_env=False,
+    )
+
+
+@cache
+def get_analytics_elasticsearch_client() -> Elasticsearch:
+    """教育问数 Elasticsearch 客户端。"""
+    s = get_settings()
+    return Elasticsearch(
+        s.analytics_es_url,
+        request_timeout=s.analytics_es_timeout_seconds,
+    )
+
+
+def get_analytics_qdrant() -> QdrantClient:
+    """兼容现有 get_* 简写命名的 Qdrant 客户端入口。"""
+    return get_analytics_qdrant_client()
+
+
+def get_analytics_elasticsearch() -> Elasticsearch:
+    """兼容现有 get_* 简写命名的 Elasticsearch 客户端入口。"""
+    return get_analytics_elasticsearch_client()
+
+
+@cache
+def get_analytics_embedding_client() -> httpx.Client:
+    """教育问数 Embedding HTTP 客户端。"""
+    s = get_settings()
+    return httpx.Client(
+        base_url=s.analytics_embedding_url,
+        timeout=httpx.Timeout(s.analytics_embedding_timeout_seconds),
+        trust_env=False,
+    )
+
+
 def ensure_minio_bucket() -> None:
     """确保 MinIO bucket 存在，导入流程启动时调用一次"""
     s = get_settings()
@@ -182,6 +242,82 @@ def probe_minio(timeout_seconds: float) -> None:
         http_client=http_client,
     )
     client.bucket_exists(s.minio_bucket)
+
+
+def probe_analytics_mysql(timeout_seconds: float | None = None) -> None:
+    s = get_settings()
+    timeout = timeout_seconds or s.analytics_mysql_timeout_seconds
+    connection = pymysql.connect(
+        **s.analytics_mysql_connect_kwargs,
+        connect_timeout=timeout,
+        read_timeout=timeout,
+        write_timeout=timeout,
+    )
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+    finally:
+        connection.close()
+
+
+def probe_analytics_qdrant(timeout_seconds: float | None = None) -> None:
+    s = get_settings()
+    client = QdrantClient(
+        url=s.analytics_qdrant_url,
+        timeout=timeout_seconds or s.analytics_qdrant_timeout_seconds,
+        trust_env=False,
+    )
+    try:
+        client.get_collections()
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+
+
+def probe_analytics_elasticsearch(timeout_seconds: float | None = None) -> None:
+    s = get_settings()
+    client = Elasticsearch(
+        s.analytics_es_url,
+        request_timeout=timeout_seconds or s.analytics_es_timeout_seconds,
+    )
+    try:
+        client.info()
+    finally:
+        client.close()
+
+
+def probe_analytics_embedding(timeout_seconds: float | None = None) -> None:
+    s = get_settings()
+    timeout = httpx.Timeout(timeout_seconds or s.analytics_embedding_timeout_seconds)
+    with httpx.Client(
+        base_url=s.analytics_embedding_url,
+        timeout=timeout,
+        trust_env=False,
+    ) as client:
+        response = client.get("/health")
+        if response.status_code in {404, 405}:
+            response = client.post("/embed", json={"inputs": ["ping"]})
+        response.raise_for_status()
+
+
+def probe_analytics_dependencies(timeout_seconds: float | None = None) -> dict[str, str]:
+    """运行教育问数四类依赖探针，供后续 analytics health route 复用。"""
+    probes = {
+        "mysql": probe_analytics_mysql,
+        "qdrant": probe_analytics_qdrant,
+        "elasticsearch": probe_analytics_elasticsearch,
+        "embedding": probe_analytics_embedding,
+    }
+    results: dict[str, str] = {}
+    for name, probe in probes.items():
+        try:
+            probe(timeout_seconds)
+            results[name] = "ok"
+        except Exception as e:
+            results[name] = f"error: {e}"
+    return results
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

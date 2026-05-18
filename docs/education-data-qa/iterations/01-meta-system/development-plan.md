@@ -35,8 +35,8 @@ uv run init_db.py
 uv run -m generate.main --profile smoke
 
 cd ../../education_brain
-uv run python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate
-uv run uvicorn knowledge.api.app:app --host 0.0.0.0 --port 8000
+PYTHONPATH=. knowledge/.venv/bin/python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate
+PYTHONPATH=. knowledge/.venv/bin/uvicorn knowledge.api.app:app --host 0.0.0.0 --port 8000
 SMOKE_STAGE=meta ./knowledge/tests/smoke_test_data_qa.sh
 ```
 
@@ -121,7 +121,7 @@ SMOKE_STAGE=meta ./knowledge/tests/smoke_test_data_qa.sh
 - 重建 ES `edu_dimension_values`。
 - 使用稳定 ID，重复执行不产生重复数据。
 
-**Validation:** `uv run python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate` 成功并输出 counts。
+**Validation:** `PYTHONPATH=. knowledge/.venv/bin/python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate` 成功并输出 counts。
 
 **Stop/ask if:** embedding 服务不可用且无法完成向量构建。
 

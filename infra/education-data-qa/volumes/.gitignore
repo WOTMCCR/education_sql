@@ -1,0 +1,4 @@
+*
+!.gitignore
+!elasticsearch/
+!elasticsearch/.gitignore

@@ -47,10 +47,12 @@ if settings.cors_allow_origins:
 from knowledge.api.routes.ingest import router as ingest_router
 from knowledge.api.routes.search import router as search_router
 from knowledge.api.routes.chat import router as chat_router
+from knowledge.api.routes.analytics import router as analytics_router
 
 app.include_router(ingest_router)
 app.include_router(search_router)
 app.include_router(chat_router)
+app.include_router(analytics_router)
 
 
 
@@ -85,4 +87,3 @@ def health_check():
         "status": "healthy" if all_ok else "degraded",
         "components": checks,
     }
-

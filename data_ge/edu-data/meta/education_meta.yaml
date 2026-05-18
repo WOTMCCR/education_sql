@@ -1,0 +1,531 @@
+version: 1
+project: education_data_qa
+database: edu
+
+sources:
+  readme_path: ../data_ge/edu-data/README.md
+  ddl_path: ../data_ge/edu-data/sql/edu.sql
+  table_column_source: readme
+  ddl_validation: true
+
+collections:
+  qdrant_columns: edu_column_info
+  qdrant_metrics: edu_metric_info
+  elasticsearch_values: edu_dimension_values
+
+defaults:
+  enabled_filter: "yn = 1"
+  paid_order_filter: "order_status IN ('paid', 'completed')"
+  paid_time_column: "order.paid_at"
+
+metric_defaults:
+  unit: count
+  metric_type: aggregate
+  time_column: order.paid_at
+  default_filters: []
+
+metrics:
+  - id: paid_revenue
+    name: 收入金额
+    aliases: [收入, 实收, 实付收入, 销售额, 交易额, GMV, 付费金额]
+    description: 已支付或已完成订单的实付金额汇总，默认使用订单支付时间统计。
+    metric_type: aggregate
+    formula: "SUM(`order`.paid_amount)"
+    base_table: order
+    time_column: order.paid_at
+    unit: yuan
+    default_filters:
+      - "`order`.order_status IN ('paid', 'completed')"
+    relevant_columns:
+      - order.paid_amount
+      - order.order_status
+      - order.paid_at
+      - order.order_source_channel_id
+    allowed_dimensions: [paid_date, paid_month, campus, institution, series, cohort, channel]
+
+  - id: enrollment_count
+    name: 报名次数
+    aliases: [报名数, 购买班次数, 履约数, 入班次数]
+    description: 学员班次履约关系记录数，用于统计报名或入班次数。
+    formula: "COUNT(student_cohort_rel.id)"
+    base_table: student_cohort_rel
+    time_column: student_cohort_rel.enroll_at
+    unit: count
+    default_filters: []
+    relevant_columns: [student_cohort_rel.id, student_cohort_rel.enroll_at, student_cohort_rel.enroll_status, student_cohort_rel.cohort_id]
+    allowed_dimensions: [enrolled_date, enrolled_month, campus, institution, series, cohort]
+
+  - id: enrolled_student_count
+    name: 报名学员数
+    aliases: [报名人数, 付费学员数, 入班学员数]
+    description: 去重后的报名学员人数。
+    formula: "COUNT(DISTINCT student_cohort_rel.student_id)"
+    base_table: student_cohort_rel
+    time_column: student_cohort_rel.enroll_at
+    unit: people
+    default_filters: []
+    relevant_columns: [student_cohort_rel.student_id, student_cohort_rel.enroll_at, student_cohort_rel.cohort_id]
+    allowed_dimensions: [enrolled_date, enrolled_month, campus, institution, series, cohort]
+
+  - id: paid_order_count
+    name: 支付订单数
+    aliases: [成交订单数, 已支付订单数, 订单量]
+    description: 已支付或已完成订单数量。
+    formula: "COUNT(`order`.id)"
+    base_table: order
+    time_column: order.paid_at
+    unit: count
+    default_filters:
+      - "`order`.order_status IN ('paid', 'completed')"
+    relevant_columns: [order.id, order.order_status, order.paid_at]
+    allowed_dimensions: [paid_date, paid_month, campus, institution, series, cohort, channel]
+
+  - id: refund_amount
+    name: 退款金额
+    aliases: [退费金额, 已退款金额, 售后退款]
+    description: 已退款申请的审批退款金额汇总。
+    formula: "SUM(refund_request.approved_amount)"
+    base_table: refund_request
+    time_column: refund_request.refunded_at
+    unit: yuan
+    default_filters:
+      - "refund_request.refund_status = 'refunded'"
+      - "refund_request.yn = 1"
+    relevant_columns: [refund_request.approved_amount, refund_request.refund_status, refund_request.refunded_at, refund_request.order_id, refund_request.order_item_id]
+    allowed_dimensions: [refund_date, refund_month, campus, institution, series, cohort]
+
+  - id: refund_rate
+    name: 退款率
+    aliases: [退费率, 退款占比]
+    description: 退款金额占收入金额的比例。
+    metric_type: ratio
+    formula: "SUM(refund_request.approved_amount) / NULLIF(SUM(`order`.paid_amount), 0)"
+    base_table: refund_request
+    time_column: refund_request.refunded_at
+    unit: ratio
+    default_filters:
+      - "refund_request.refund_status = 'refunded'"
+      - "refund_request.yn = 1"
+    relevant_columns: [refund_request.approved_amount, order.paid_amount]
+    allowed_dimensions: [refund_date, refund_month, campus, institution, series, cohort]
+
+  - id: average_order_value
+    name: 客单价
+    aliases: [平均订单金额, 平均实付金额, AOV]
+    description: 已支付订单实付金额除以已支付订单数。
+    metric_type: ratio
+    formula: "SUM(`order`.paid_amount) / NULLIF(COUNT(`order`.id), 0)"
+    base_table: order
+    time_column: order.paid_at
+    unit: yuan
+    default_filters:
+      - "`order`.order_status IN ('paid', 'completed')"
+    relevant_columns: [order.paid_amount, order.id, order.paid_at]
+    allowed_dimensions: [paid_date, paid_month, campus, institution, series, cohort, channel]
+
+  - id: consultation_to_enrollment_rate
+    name: 咨询报名转化率
+    aliases: [咨询转化率, 咨询到报名, 销售转化率]
+    description: 报名学员数除以咨询记录数，用于粗略衡量咨询转化。
+    metric_type: ratio
+    formula: "COUNT(DISTINCT student_cohort_rel.student_id) / NULLIF(COUNT(DISTINCT consultation_record.id), 0)"
+    base_table: consultation_record
+    time_column: consultation_record.consulted_at
+    unit: ratio
+    default_filters: []
+    relevant_columns: [consultation_record.id, consultation_record.consulted_at, consultation_record.cohort_id, consultation_record.source_channel_id, student_cohort_rel.student_id]
+    allowed_dimensions: [consulted_date, consulted_month, campus, institution, series, channel]
+
+  - id: attendance_rate
+    name: 出勤率
+    aliases: [到课率, 考勤率]
+    description: 出勤状态为 present 的考勤记录占全部考勤记录比例。
+    metric_type: ratio
+    formula: "SUM(CASE WHEN session_attendance.attendance_status = 'present' THEN 1 ELSE 0 END) / NULLIF(COUNT(session_attendance.id), 0)"
+    base_table: session_attendance
+    time_column: session_attendance.created_at
+    unit: ratio
+    default_filters: []
+    relevant_columns: [session_attendance.id, session_attendance.attendance_status, session_attendance.session_id, session_attendance.student_id]
+    allowed_dimensions: [created_date, created_month, campus, institution, series, cohort]
+
+  - id: video_completion_rate
+    name: 视频完课率
+    aliases: [视频完成率, 录播完课率]
+    description: 完成观看的视频播放会话占全部视频播放会话比例。
+    metric_type: ratio
+    formula: "SUM(CASE WHEN session_video_play.completed_flag = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(session_video_play.id), 0)"
+    base_table: session_video_play
+    time_column: session_video_play.started_at
+    unit: ratio
+    default_filters: []
+    relevant_columns: [session_video_play.id, session_video_play.completed_flag, session_video_play.started_at, session_video_play.video_id]
+    allowed_dimensions: [started_date, started_month, campus, institution, series, cohort]
+
+  - id: homework_submit_rate
+    name: 作业提交率
+    aliases: [作业完成率, 作业上交率]
+    description: 已提交作业记录占全部作业提交记录比例。
+    metric_type: ratio
+    formula: "SUM(CASE WHEN session_homework_submission.submit_status = 'submitted' THEN 1 ELSE 0 END) / NULLIF(COUNT(session_homework_submission.id), 0)"
+    base_table: session_homework_submission
+    time_column: session_homework_submission.created_at
+    unit: ratio
+    default_filters: []
+    relevant_columns: [session_homework_submission.id, session_homework_submission.submit_status, session_homework_submission.homework_id]
+    allowed_dimensions: [created_date, created_month, campus, institution, series, cohort]
+
+  - id: exam_submit_rate
+    name: 考试提交率
+    aliases: [考试完成率, 测验提交率]
+    description: 已提交考试作答记录占全部考试作答记录比例。
+    metric_type: ratio
+    formula: "SUM(CASE WHEN session_exam_submission.attempt_status = 'submitted' THEN 1 ELSE 0 END) / NULLIF(COUNT(session_exam_submission.id), 0)"
+    base_table: session_exam_submission
+    time_column: session_exam_submission.created_at
+    unit: ratio
+    default_filters: []
+    relevant_columns: [session_exam_submission.id, session_exam_submission.attempt_status, session_exam_submission.exam_id]
+    allowed_dimensions: [created_date, created_month, campus, institution, series, cohort]
+
+  - id: ticket_count
+    name: 工单数
+    aliases: [服务工单数, 售后工单数, 客服工单量]
+    description: 服务工单记录数。
+    formula: "COUNT(service_ticket.id)"
+    base_table: service_ticket
+    time_column: service_ticket.created_at
+    unit: count
+    default_filters:
+      - "service_ticket.yn = 1"
+    relevant_columns: [service_ticket.id, service_ticket.ticket_status, service_ticket.created_at]
+    allowed_dimensions: [created_date, created_month, campus, institution, series]
+
+  - id: ticket_close_rate
+    name: 工单关闭率
+    aliases: [工单解决率, 服务关闭率]
+    description: 已关闭工单占全部工单比例。
+    metric_type: ratio
+    formula: "SUM(CASE WHEN service_ticket.ticket_status = 'closed' THEN 1 ELSE 0 END) / NULLIF(COUNT(service_ticket.id), 0)"
+    base_table: service_ticket
+    time_column: service_ticket.created_at
+    unit: ratio
+    default_filters:
+      - "service_ticket.yn = 1"
+    relevant_columns: [service_ticket.id, service_ticket.ticket_status, service_ticket.created_at]
+    allowed_dimensions: [created_date, created_month, campus, institution, series]
+
+dimensions:
+  - id: campus
+    name: 校区
+    table_name: org_campus
+    column_name: campus_name
+    key_column: id
+    aliases: [校区, 校区名称, 分校, 教学点]
+    value_sql: "SELECT id AS value_id, campus_name AS value, campus_code AS code FROM org_campus WHERE yn = 1"
+
+  - id: institution
+    name: 机构
+    table_name: org_institution
+    column_name: institution_name
+    key_column: id
+    aliases: [机构, 学校, 品牌, 机构名称]
+    value_sql: "SELECT id AS value_id, institution_name AS value, institution_code AS code FROM org_institution WHERE yn = 1"
+
+  - id: series
+    name: 课程系列
+    table_name: series
+    column_name: series_name
+    key_column: id
+    aliases: [课程, 课程系列, 课程产品, 课程名称]
+    value_sql: "SELECT id AS value_id, series_name AS value, series_code AS code FROM series"
+
+  - id: cohort
+    name: 班次
+    table_name: series_cohort
+    column_name: cohort_name
+    key_column: id
+    aliases: [班次, 班级, 开班, cohort]
+    value_sql: "SELECT id AS value_id, cohort_name AS value, cohort_code AS code FROM series_cohort WHERE yn = 1"
+
+  - id: channel
+    name: 渠道
+    table_name: dim_channel
+    column_name: channel_name
+    key_column: id
+    aliases: [渠道, 来源渠道, 获客渠道, 订单渠道]
+    value_sql: "SELECT id AS value_id, channel_name AS value, channel_code AS code FROM dim_channel WHERE yn = 1"
+
+  - id: paid_date
+    name: 支付日期
+    table_name: order
+    column_name: paid_at
+    time_grain: day
+    aliases: [支付日期, 成交日期, 日期]
+
+  - id: paid_month
+    name: 支付月份
+    table_name: order
+    column_name: paid_at
+    time_grain: month
+    aliases: [支付月份, 成交月份, 月份]
+
+  - id: enrolled_date
+    name: 报名日期
+    table_name: student_cohort_rel
+    column_name: enroll_at
+    time_grain: day
+    aliases: [报名日期, 入班日期]
+
+  - id: enrolled_month
+    name: 报名月份
+    table_name: student_cohort_rel
+    column_name: enroll_at
+    time_grain: month
+    aliases: [报名月份, 入班月份]
+
+  - id: created_date
+    name: 创建日期
+    table_name: "*"
+    column_name: created_at
+    time_grain: day
+    aliases: [创建日期, 日期]
+
+  - id: created_month
+    name: 创建月份
+    table_name: "*"
+    column_name: created_at
+    time_grain: month
+    aliases: [创建月份, 月份]
+
+  - id: refund_date
+    name: 退款日期
+    table_name: refund_request
+    column_name: refunded_at
+    time_grain: day
+    aliases: [退款日期, 退费日期]
+
+  - id: refund_month
+    name: 退款月份
+    table_name: refund_request
+    column_name: refunded_at
+    time_grain: month
+    aliases: [退款月份, 退费月份]
+
+  - id: consulted_date
+    name: 咨询日期
+    table_name: consultation_record
+    column_name: consulted_at
+    time_grain: day
+    aliases: [咨询日期]
+
+  - id: consulted_month
+    name: 咨询月份
+    table_name: consultation_record
+    column_name: consulted_at
+    time_grain: month
+    aliases: [咨询月份]
+
+  - id: started_date
+    name: 开始日期
+    table_name: session_video_play
+    column_name: started_at
+    time_grain: day
+    aliases: [开始日期, 播放日期]
+
+  - id: started_month
+    name: 开始月份
+    table_name: session_video_play
+    column_name: started_at
+    time_grain: month
+    aliases: [开始月份, 播放月份]
+
+joins:
+  - id: order_order_item
+    left_table: order
+    left_column: id
+    right_table: order_item
+    right_column: order_id
+    join_type: one_to_many
+    path_group: revenue
+    description: 订单到订单明细。
+
+  - id: order_channel
+    left_table: order
+    left_column: order_source_channel_id
+    right_table: dim_channel
+    right_column: id
+    join_type: many_to_one
+    path_group: revenue
+    description: 订单来源渠道归因。
+
+  - id: order_item_cohort
+    left_table: order_item
+    left_column: cohort_id
+    right_table: series_cohort
+    right_column: id
+    join_type: many_to_one
+    path_group: revenue
+    description: 订单明细到成交班次。
+
+  - id: cohort_series
+    left_table: series_cohort
+    left_column: series_id
+    right_table: series
+    right_column: id
+    join_type: many_to_one
+    path_group: core
+    description: 班次到课程系列。
+
+  - id: cohort_campus
+    left_table: series_cohort
+    left_column: campus_id
+    right_table: org_campus
+    right_column: id
+    join_type: many_to_one
+    path_group: core
+    description: 班次到校区。
+
+  - id: cohort_institution
+    left_table: series_cohort
+    left_column: institution_id
+    right_table: org_institution
+    right_column: id
+    join_type: many_to_one
+    path_group: core
+    description: 班次到机构。
+
+  - id: student_cohort_cohort
+    left_table: student_cohort_rel
+    left_column: cohort_id
+    right_table: series_cohort
+    right_column: id
+    join_type: many_to_one
+    path_group: enrollment
+    description: 履约报名关系到班次。
+
+  - id: consultation_cohort
+    left_table: consultation_record
+    left_column: cohort_id
+    right_table: series_cohort
+    right_column: id
+    join_type: many_to_one
+    path_group: conversion
+    description: 咨询记录到咨询班次。
+
+  - id: consultation_channel
+    left_table: consultation_record
+    left_column: source_channel_id
+    right_table: dim_channel
+    right_column: id
+    join_type: many_to_one
+    path_group: conversion
+    description: 咨询记录到来源渠道。
+
+  - id: refund_order
+    left_table: refund_request
+    left_column: order_id
+    right_table: order
+    right_column: id
+    join_type: many_to_one
+    path_group: refund
+    description: 退款申请到订单。
+
+  - id: refund_order_item
+    left_table: refund_request
+    left_column: order_item_id
+    right_table: order_item
+    right_column: id
+    join_type: many_to_one
+    path_group: refund
+    description: 退款申请到订单明细。
+
+  - id: attendance_session
+    left_table: session_attendance
+    left_column: session_id
+    right_table: series_cohort_session
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 考勤到课次。
+
+  - id: video_play_video
+    left_table: session_video_play
+    left_column: video_id
+    right_table: session_video
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 视频播放会话到课次视频。
+
+  - id: video_asset
+    left_table: session_video
+    left_column: asset_id
+    right_table: session_asset
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 课次视频到课次资源。
+
+  - id: asset_session
+    left_table: session_asset
+    left_column: session_id
+    right_table: series_cohort_session
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 课次资源到课次。
+
+  - id: homework_submission_session
+    left_table: session_homework_submission
+    left_column: session_id
+    right_table: series_cohort_session
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 作业提交到课次。
+
+  - id: exam_submission_exam
+    left_table: session_exam_submission
+    left_column: exam_id
+    right_table: session_exam
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 考试作答到考试。
+
+  - id: exam_session
+    left_table: session_exam
+    left_column: session_id
+    right_table: series_cohort_session
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 考试到课次。
+
+  - id: session_course
+    left_table: series_cohort_session
+    left_column: series_cohort_course_id
+    right_table: series_cohort_course
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 课次到班次课程模块。
+
+  - id: course_cohort
+    left_table: series_cohort_course
+    left_column: cohort_id
+    right_table: series_cohort
+    right_column: id
+    join_type: many_to_one
+    path_group: learning
+    description: 班次课程模块到班次。
+
+  - id: ticket_order_item
+    left_table: service_ticket
+    left_column: order_item_id
+    right_table: order_item
+    right_column: id
+    join_type: many_to_one
+    path_group: service
+    description: 服务工单到订单明细。
