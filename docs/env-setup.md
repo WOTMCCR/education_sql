@@ -1,6 +1,6 @@
 # Environment Setup
 
-> Updated by env-preflight skill. Last updated: 2026-05-18 17:58:02 CST.
+> Updated by env-preflight skill. Last updated: 2026-05-18 18:10:44 CST.
 
 ## Tech Stack
 
@@ -69,6 +69,17 @@ Python 3.12 backend and data generator, Vite/React frontend, Docker Compose data
 | Workflow | Frontend build | PASS | `vite build` succeeded with current split chunks; no large chunk warning. |
 | Workflow | Backend import | PASS | `PYTHONPATH=. knowledge/.venv/bin/python -c "from knowledge.api.app import app"` succeeded. |
 | Workflow | Git state | INFO | Branch `main`; worktree was clean before Iteration 04 preflight documentation updates. |
+
+### Iteration 05A Preflight Review: 2026-05-18 18:10:44 CST
+
+| Category | Check | Status | Notes |
+|----------|-------|--------|-------|
+| Git | Worktree after Iteration 04 commit | PASS | Branch `main`; no uncommitted changes before 05A preflight. |
+| Services | Data QA compose stack | PASS | MySQL, MongoDB, Elasticsearch, Kibana, Qdrant, and TEI embedding containers were running. |
+| Workflow | Global health | PASS | `/health` returned `healthy` with required component `mongodb`. |
+| Workflow | Analytics health | PASS | `/analytics/health` returned `healthy`; counts: 66 tables, 738 columns, 14 metrics, 21 joins, 17 dimensions. |
+| Workflow | Meta smoke | PASS | `cd education_brain && SMOKE_STAGE=meta ./knowledge/tests/smoke_test_data_qa.sh` passed 5 checks. |
+| Safety | Bootstrap rebuild commands | INFO | `init_db.py`, `generate.main --profile smoke`, and `build_meta --recreate` rewrite local DB/index data and require explicit confirmation before execution. |
 
 ## Verified Commands
 
