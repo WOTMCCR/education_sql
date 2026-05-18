@@ -1,0 +1,21 @@
+channel_category_code,channel_category_name,channel_code,channel_name,sort_no,yn,created_at,updated_at
+acquisition,获客渠道,organic,自然流量,10,1,2017-06-01 10:00:00,2017-06-01 10:00:00
+acquisition,获客渠道,app_store,应用商店,11,1,2017-06-10 10:00:00,2017-06-10 10:00:00
+acquisition,获客渠道,seo,搜索引擎优化,12,1,2017-06-10 10:00:00,2017-06-10 10:00:00
+acquisition,获客渠道,content_platform,内容平台,13,1,2018-09-18 10:00:00,2018-09-18 10:00:00
+acquisition,获客渠道,advertising,广告投放,20,1,2018-05-08 10:00:00,2018-05-08 10:00:00
+acquisition,获客渠道,short_video_ads,短视频投放,21,1,2020-06-12 10:00:00,2020-06-12 10:00:00
+acquisition,获客渠道,search_ads,搜索广告,22,1,2018-05-12 10:00:00,2018-05-12 10:00:00
+acquisition,获客渠道,information_flow_ads,信息流广告,23,1,2018-08-20 10:00:00,2018-08-20 10:00:00
+referral,转介绍渠道,social_referral,社交裂变,30,1,2018-03-06 10:00:00,2018-03-06 10:00:00
+referral,转介绍渠道,friend_referral,老带新,31,1,2018-03-08 10:00:00,2018-03-08 10:00:00
+referral,转介绍渠道,teacher_referral,教师转介绍,32,1,2018-03-10 10:00:00,2018-03-10 10:00:00
+referral,转介绍渠道,private_domain,私域运营,33,1,2020-04-15 10:00:00,2020-04-15 10:00:00
+offline,线下活动渠道,offline_activity,线下活动,40,1,2017-05-10 10:00:00,2017-05-10 10:00:00
+offline,线下活动渠道,campus_promotion,校区地推,41,1,2017-05-18 10:00:00,2017-05-18 10:00:00
+offline,线下活动渠道,public_lecture,公开讲座,42,1,2017-05-18 10:00:00,2017-05-18 10:00:00
+offline,线下活动渠道,education_expo,教育展会,43,1,2017-05-25 10:00:00,2017-05-25 10:00:00
+cooperation,合作渠道,b2b_cooperation,机构合作,50,1,2018-01-08 10:00:00,2018-01-08 10:00:00
+cooperation,合作渠道,school_cooperation,学校合作,51,1,2018-01-12 10:00:00,2018-01-12 10:00:00
+cooperation,合作渠道,enterprise_cooperation,企业合作,52,1,2018-01-15 10:00:00,2018-01-15 10:00:00
+cooperation,合作渠道,partner_channel,渠道代理,53,1,2018-01-18 10:00:00,2018-01-18 10:00:00

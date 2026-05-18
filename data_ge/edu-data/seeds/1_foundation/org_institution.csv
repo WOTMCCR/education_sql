@@ -1,0 +1,7 @@
+institution_code,institution_name,institution_type,province,city,district,address,yn,created_at,updated_at
+institution_01,星航教育,training_center,北京市,北京市,海淀区,北京市海淀区中关村东路 66 号,1,2018-03-29 11:24:00,2018-09-12 12:40:00
+institution_02,青藤学堂,education_brand,上海市,上海市,浦东新区,上海市浦东新区张江路 588 号,1,2018-08-12 15:59:00,2018-09-27 18:09:00
+institution_03,知行书院,school,广东省,广州市,天河区,广东省广州市天河区科韵路 48 号,1,2019-02-25 10:37:00,2019-09-04 13:10:00
+institution_04,启明课堂,training_center,浙江省,杭州市,西湖区,浙江省杭州市西湖区文三路 198 号,1,2019-09-21 16:10:00,2019-11-04 20:40:00
+institution_05,优学工坊,enterprise_academy,江苏省,南京市,雨花台区,江苏省南京市雨花台区软件大道 68 号,1,2020-04-26 11:57:00,2020-11-21 13:03:00
+institution_06,进阶学院,training_center,四川省,成都市,高新区,四川省成都市高新区天府大道北段 1700 号,1,2021-07-03 17:05:00,2021-08-13 19:54:00
