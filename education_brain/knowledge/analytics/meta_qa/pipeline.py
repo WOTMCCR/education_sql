@@ -10,6 +10,7 @@ from knowledge.analytics.agent.llm_schema import parse_model
 from knowledge.analytics.agent.llm_utils import summarize_for_trace
 from knowledge.analytics.meta_store import (
     find_join_path,
+    get_catalog_overview,
     get_columns_by_full_names,
     get_dimensions_by_ids,
     get_metric_context,
@@ -24,6 +25,25 @@ from knowledge.models.chat import MetaCitation, MetaQaResponse
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "meta_qa_answer.md"
 DATA_QUERY_WORDS = ("多少", "几个", "趋势", "排名", "最高", "最低", "明细", "本月", "最近", "同比", "环比")
+CATALOG_OVERVIEW_WORDS = (
+    "有哪些表",
+    "有什么表",
+    "哪些表",
+    "有哪些数据",
+    "有什么数据",
+    "有哪些数据库",
+    "有什么数据库",
+    "有哪些指标",
+    "有什么指标",
+    "我能问什么",
+    "我可以问什么",
+    "能问哪些",
+    "可以问哪些",
+    "关注哪些指标",
+    "应该关注哪些",
+    "insight",
+    "洞察",
+)
 
 
 def _unique(values: list[str]) -> list[str]:
@@ -34,6 +54,11 @@ def _requires_data_qa(question: str) -> bool:
     return any(word in question for word in DATA_QUERY_WORDS) and not any(
         word in question for word in ("怎么算", "口径", "定义", "字段", "哪些表", "支持哪些维度", "为什么")
     )
+
+
+def _is_catalog_overview_question(question: str) -> bool:
+    normalized = question.lower()
+    return any(word in normalized for word in CATALOG_OVERVIEW_WORDS)
 
 
 def _citation(kind: str, source: str, item: dict[str, Any]) -> dict[str, str]:
@@ -61,6 +86,73 @@ def _citation(kind: str, source: str, item: dict[str, Any]) -> dict[str, str]:
         "name": str(name or ""),
         "source": source,
         "description": str(item.get("description") or ""),
+    }
+
+
+def _catalog_overview_response(question: str, *, started: float) -> dict[str, Any]:
+    overview = get_catalog_overview()
+    tables = overview["tables"]
+    metrics = overview["metrics"]
+    dimensions = overview["dimensions"]
+
+    table_lines = [
+        f"- `{item['table_name']}`：{item.get('business_name') or item['table_name']}，约 {item.get('row_count') or 0} 行"
+        for item in tables[:10]
+    ]
+    metric_lines = [
+        f"- `{item['metric_id']}`：{item.get('name') or item['metric_id']}，{item.get('description') or '已配置业务口径'}"
+        for item in metrics[:10]
+    ]
+    dimension_names = "、".join([str(item.get("name") or item.get("dimension_id")) for item in dimensions[:8]])
+    question_examples = [
+        "本月报名人数是多少？",
+        "最近30天收入如何？",
+        "哪个校区报名人数最多？",
+        "按课程系列统计本月收入",
+        "最近三个月完课率变化情况",
+    ]
+    answer = "\n".join(
+        [
+            f"当前数据资产包含 {overview['table_count']} 张业务表、{overview['metric_count']} 个指标、{overview['dimension_count']} 个可用维度。",
+            "",
+            "核心表：",
+            *table_lines,
+            "",
+            "核心指标：",
+            *metric_lines,
+            "",
+            f"常用分析维度包括：{dimension_names}。",
+            "",
+            "建议优先关注报名、收入、退款、完课率、出勤率、转化率等指标，并结合时间、校区、课程系列、班次做趋势、排名和对比。",
+            "",
+            "可以直接这样问：",
+            *[f"- {item}" for item in question_examples],
+        ]
+    )
+    citations = [
+        *[_citation("table", "meta_table_info", item) for item in tables[:3]],
+        *[_citation("metric", "meta_metric_info", item) for item in metrics[:3]],
+    ]
+    stage = {
+        "name": "meta_qa_catalog_overview",
+        "status": "ok",
+        "durationMs": round((time.perf_counter() - started) * 1000),
+        "message": "Answered catalog overview with deterministic metadata summary.",
+        "outputSummary": {
+            "tableCount": overview["table_count"],
+            "metricCount": overview["metric_count"],
+            "dimensionCount": overview["dimension_count"],
+        },
+    }
+    return {
+        "ok": True,
+        "result_type": "meta_answer",
+        "mode": "meta_qa",
+        "answer": answer,
+        "citations": citations,
+        "blocks": [{"type": "markdown", "content": answer}, {"type": "meta_citations", "data": citations}],
+        "trace": {"stages": [stage], "durationMs": round((time.perf_counter() - started) * 1000)},
+        "question": question,
     }
 
 
@@ -338,6 +430,8 @@ def _call_meta_llm(question: str, context: dict[str, Any], allowed: dict[tuple[s
 def run_meta_qa(question: str, session_id: str | None = None) -> dict[str, Any]:
     del session_id
     started = time.perf_counter()
+    if _is_catalog_overview_question(question):
+        return _catalog_overview_response(question, started=started)
     if _requires_data_qa(question):
         return _requires_data_qa_response(question, started=started)
     context, allowed = _build_context(question)

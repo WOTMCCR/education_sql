@@ -984,6 +984,63 @@ def get_table_context(table_names: list[str]) -> list[dict[str, Any]]:
     return result
 
 
+def get_catalog_overview(table_limit: int = 16, metric_limit: int = 16, dimension_limit: int = 12) -> dict[str, Any]:
+    connection = mysql_dict_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT table_name, domain_name, business_name, description, row_count
+                FROM meta_table_info
+                WHERE enabled = 1
+                ORDER BY domain_name, table_name
+                LIMIT %s
+                """,
+                (table_limit,),
+            )
+            tables = list(cursor.fetchall())
+            cursor.execute("SELECT COUNT(*) AS c FROM meta_table_info WHERE enabled = 1")
+            table_count = int((cursor.fetchone() or {}).get("c") or 0)
+
+            cursor.execute(
+                """
+                SELECT metric_id, name, description, unit, base_table
+                FROM meta_metric_info
+                WHERE enabled = 1
+                ORDER BY metric_id
+                LIMIT %s
+                """,
+                (metric_limit,),
+            )
+            metrics = list(cursor.fetchall())
+            cursor.execute("SELECT COUNT(*) AS c FROM meta_metric_info WHERE enabled = 1")
+            metric_count = int((cursor.fetchone() or {}).get("c") or 0)
+
+            cursor.execute(
+                """
+                SELECT dimension_id, name, table_name, column_name
+                FROM meta_dimension_info
+                WHERE enabled = 1
+                ORDER BY dimension_id
+                LIMIT %s
+                """,
+                (dimension_limit,),
+            )
+            dimensions = list(cursor.fetchall())
+            cursor.execute("SELECT COUNT(*) AS c FROM meta_dimension_info WHERE enabled = 1")
+            dimension_count = int((cursor.fetchone() or {}).get("c") or 0)
+    finally:
+        connection.close()
+    return {
+        "table_count": table_count,
+        "metric_count": metric_count,
+        "dimension_count": dimension_count,
+        "tables": tables,
+        "metrics": metrics,
+        "dimensions": dimensions,
+    }
+
+
 def mysql_like_search(table: str, query: str, limit: int) -> list[dict[str, Any]]:
     connection = mysql_dict_connection()
     try:

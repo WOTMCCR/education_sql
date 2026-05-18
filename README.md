@@ -6,7 +6,7 @@ The project is organized as a full-stack prototype:
 
 - **Backend**: FastAPI service for chat, natural-language-to-SQL analytics, metadata retrieval, and conversation history.
 - **Frontend**: React + Vite chat interface with chart rendering, table fallback, metric explanations, and mobile-friendly layout.
-- **Analytics metadata**: configurable business metrics, dimensions, table relationships, and semantic retrieval support.
+- **Analytics metadata**: configurable business metrics, dimensions, table relationships, deterministic core analytics rules, and semantic retrieval support.
 - **Demo data generator**: synthetic education-operations data used for local development and product demos.
 
 ## Screenshots
@@ -40,6 +40,12 @@ Teaching and learning metrics, such as completion rate, use the same traceable a
 Refund-related metrics are returned as structured metric cards and tables.
 
 ![Refund metric](assets/readme/refund-stat.png)
+
+### Core Business Questions
+
+Catalog discovery, refund-rate ranking, renewal comparison, and dimension breakdown questions render in one continuous chat flow.
+
+![Core business questions](assets/readme/core-business-questions.png)
 
 ### Data Introduction
 
@@ -100,7 +106,6 @@ education_brain_fullstack/
 ├── education_brain/          # FastAPI backend and analytics pipeline
 ├── education_brain_front/    # React/Vite frontend
 ├── data_ge/edu-data/         # synthetic demo data and metadata definitions
-├── infra/                    # optional local service templates
 └── assets/readme/            # public README screenshots
 ```
 
@@ -108,8 +113,10 @@ Backend flow:
 
 ```text
 Chat request
-  ├─ data-analysis question -> metadata recall -> SQL generation -> SQL validation -> query execution -> chart/table response
-  └─ data-introduction question -> metadata retrieval -> LLM explanation -> citations
+  ├─ data-analysis question
+  │   ├─ core business rule -> SQL validation -> query execution -> chart/table response
+  │   └─ general analytics question -> metadata recall -> SQL generation -> validation -> execution -> response
+  └─ data-introduction question -> metadata retrieval -> catalog/metric explanation -> citations
 ```
 
 Frontend flow:
@@ -133,6 +140,10 @@ Examples:
 - "What is this month's refund amount?"
 - "Show revenue trend for the last 30 days."
 - "Which campus has the highest revenue?"
+- "Which course series has the highest refund rate?"
+- "Compare renewal revenue this week and last week."
+- "Break down this month's revenue by course series."
+- "Break down this month's enrollment by class cohort."
 
 ### Data Introduction
 
@@ -244,8 +255,8 @@ Recent local verification against the included `edu-data` demo domain covered:
 
 Current demo-data acceptance notes:
 
-- Supported successfully in the latest run: current-month enrollment, current-month revenue, current-month refund amount, 30-day revenue trend, campus enrollment ranking, three-month completion-rate trend, metadata discovery, and full "question -> parse -> execute -> result" UI flow.
-- Known extension areas: some complex course-series refund-rate prompts and week-over-week renewal wording need stronger metric coverage and prompt routing. The framework returns structured errors instead of breaking the service.
+- Supported successfully in the latest run: current-month enrollment, current-month revenue, current-month refund amount, 30-day revenue trend, campus enrollment ranking, three-month completion-rate trend, metadata discovery, course-series refund-rate ranking, week-over-week renewal comparison, course-series revenue breakdown, cohort enrollment breakdown, and full "question -> parse -> execute -> result" UI flow.
+- Core demo questions use deterministic analytics rules where the metric definition is business-critical. Broader ad hoc questions still use the metadata-driven SQL pipeline with validation and structured error handling.
 
 ## Security Notes
 

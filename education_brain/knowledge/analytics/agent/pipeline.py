@@ -6,6 +6,7 @@ from typing import Any
 
 from knowledge.analytics.agent.graph import build_data_qa_graph
 from knowledge.analytics.agent.nodes.core import finalize_result
+from knowledge.analytics.agent.rules import run_rule_based_data_qa
 
 
 def _jsonable(value: Any) -> Any:
@@ -22,6 +23,10 @@ def _jsonable(value: Any) -> Any:
 
 def run_data_qa(question: str, session_id: str | None = None) -> dict[str, Any]:
     started_at = time.perf_counter()
+    rule_result = run_rule_based_data_qa(question, started_at=started_at)
+    if rule_result is not None:
+        return _jsonable(rule_result)
+
     graph = build_data_qa_graph()
     state = graph.invoke(
         {
