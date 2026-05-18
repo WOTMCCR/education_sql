@@ -4,6 +4,7 @@
 
 - Runtime verified on 2026-05-18: Python 3.12.3, `uv 0.9.18`, Node.js v20.19.6, npm 10.8.2, Docker 29.1.3, Docker Compose v2.40.3.
 - Project-local data QA services live in `infra/education-data-qa/` and expose MySQL `3306`, MongoDB `27017`, Elasticsearch `9200`, Kibana `5601`, Qdrant `6333/6334`, and TEI embedding `8081`; these were running and health-checked on 2026-05-18.
+- The repo-root Docker Compose file path is `infra/education-data-qa/docker-compose.yaml`.
 - MySQL defaults for Iteration 01 are `root/123321`, database `edu`, matching `data_ge/edu-data/.env.example`.
 - The backend package is importable from `education_brain` with `PYTHONPATH=.`. The verified local environment is `education_brain/knowledge/.venv`.
 - Verified build command: `cd education_brain && PYTHONPATH=. knowledge/.venv/bin/python -m knowledge.analytics.build_meta --config ../data_ge/edu-data/meta/education_meta.yaml --recreate`.

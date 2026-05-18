@@ -1,6 +1,6 @@
 # Environment Setup
 
-> Updated by env-preflight skill. Last updated: 2026-05-18 17:26:50 CST.
+> Updated by env-preflight skill. Last updated: 2026-05-18 17:58:02 CST.
 
 ## Tech Stack
 
@@ -20,6 +20,7 @@ Python 3.12 backend and data generator, Vite/React frontend, Docker Compose data
 - Iteration 03 validation is `POST /analytics/query` plus `SMOKE_STAGE=llm`; do not use `SMOKE_STAGE=all` as the Iteration 03 gate.
 - Smoke scripts require the FastAPI server to be running first. If `/health` is unreachable, start the API instead of rerunning the smoke script blindly.
 - Current compose stack provides MySQL, MongoDB, Elasticsearch, Kibana, Qdrant, and TEI embedding.
+- The compose file is `infra/education-data-qa/docker-compose.yaml`; use that path if invoking Docker Compose from the repo root.
 - MongoDB is required for chat history in Iteration 04/05. It is part of `infra/education-data-qa/docker-compose.yaml` as `mongodb` using the local `mongo:7.0` image.
 - Milvus and MinIO appear only in old document/search code scheduled for deletion in Iteration 04; they are not part of the education data QA path.
 - Global `/health` defaults to required dependency `mongodb` only via `HEALTH_REQUIRED_DEPENDENCIES=mongodb`; do not add Milvus/MinIO for the current Iteration 04/05 path.
@@ -38,7 +39,7 @@ Python 3.12 backend and data generator, Vite/React frontend, Docker Compose data
 
 ## Check Results
 
-### Latest Preflight: 2026-05-18 17:26:50 CST
+### Latest Preflight: 2026-05-18 17:58:02 CST
 
 | Category | Check | Status | Notes |
 |----------|-------|--------|-------|
@@ -65,8 +66,9 @@ Python 3.12 backend and data generator, Vite/React frontend, Docker Compose data
 | Workflow | Analytics health | PASS | `/analytics/health` returned `healthy`; counts: 66 tables, 738 columns, 14 metrics, 21 joins, 17 dimensions. |
 | Workflow | Backend focused tests | PASS | `12 passed, 1 warning`. |
 | Workflow | Frontend tests | PASS | `4 passed`. |
-| Workflow | Frontend build | PASS | `vite build` succeeded. |
-| Workflow | Git state | INFO | Branch `main`; worktree is dirty from active iteration work. |
+| Workflow | Frontend build | PASS | `vite build` succeeded with current split chunks; no large chunk warning. |
+| Workflow | Backend import | PASS | `PYTHONPATH=. knowledge/.venv/bin/python -c "from knowledge.api.app import app"` succeeded. |
+| Workflow | Git state | INFO | Branch `main`; worktree was clean before Iteration 04 preflight documentation updates. |
 
 ## Verified Commands
 
