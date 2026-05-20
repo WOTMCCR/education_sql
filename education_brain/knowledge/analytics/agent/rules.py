@@ -6,13 +6,53 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
+from knowledge.analytics.agent.comparison import reshape_time_comparison
+from knowledge.analytics.agent.query_plan import (
+    ComparisonSpec,
+    DimensionRequest,
+    FilterRequest,
+    JoinPlan,
+    MetricRequest,
+    QueryPlan,
+    TimeWindow,
+)
 from knowledge.analytics.agent.sql import execute_select
+from knowledge.analytics.agent.sql_builder import (
+    build_aggregate_sql,
+    build_time_comparison_sql,
+    comparison_metadata,
+    visual_columns_for_plan,
+)
+from knowledge.analytics.join_planner import build_join_plan
 
 
 def _month_range(today: date) -> tuple[str, str, str]:
     start = today.replace(day=1)
     end_exclusive = today + timedelta(days=1)
     return start.isoformat(), today.isoformat(), end_exclusive.isoformat()
+
+
+def _current_month_window(today: date) -> TimeWindow:
+    start, _, end_exclusive = _month_range(today)
+    return TimeWindow(start=start, endExclusive=end_exclusive, label="本月")
+
+
+def _previous_month_window(today: date) -> TimeWindow:
+    current_start = today.replace(day=1)
+    previous_end = current_start
+    previous_start = (current_start - timedelta(days=1)).replace(day=1)
+    return TimeWindow(start=previous_start.isoformat(), endExclusive=previous_end.isoformat(), label="上月")
+
+
+def _rolling_30_windows(today: date) -> tuple[TimeWindow, TimeWindow]:
+    current_end = today + timedelta(days=1)
+    current_start = today - timedelta(days=29)
+    baseline_end = current_start
+    baseline_start = current_start - timedelta(days=30)
+    return (
+        TimeWindow(start=current_start.isoformat(), endExclusive=current_end.isoformat(), label="最近30天"),
+        TimeWindow(start=baseline_start.isoformat(), endExclusive=baseline_end.isoformat(), label="前30天"),
+    )
 
 
 def _week_ranges(today: date) -> dict[str, tuple[str, str]]:
@@ -104,6 +144,240 @@ def _error_result(question: str, started_at: float, error: Exception) -> dict[st
         "warnings": [],
         "error": {"stage": "deterministic_rule", "code": "DETERMINISTIC_RULE_FAILED", "message": message},
     }
+
+
+METRICS = {
+    "paid_revenue": MetricRequest(
+        id="paid_revenue",
+        name="收入金额",
+        expression="SUM(`order`.paid_amount)",
+        base_table="order",
+        value_alias="paid_revenue",
+        time_column="order.paid_at",
+        unit="yuan",
+        default_filters=["`order`.order_status IN ('paid', 'completed')"],
+    ),
+    "paid_order_count": MetricRequest(
+        id="paid_order_count",
+        name="支付订单数",
+        expression="COUNT(DISTINCT `order`.id)",
+        base_table="order",
+        value_alias="paid_order_count",
+        time_column="order.paid_at",
+        unit="count",
+        default_filters=["`order`.order_status IN ('paid', 'completed')"],
+    ),
+    "enrolled_student_count": MetricRequest(
+        id="enrolled_student_count",
+        name="报名学员数",
+        expression="COUNT(DISTINCT student_cohort_rel.student_id)",
+        base_table="student_cohort_rel",
+        value_alias="enrolled_student_count",
+        time_column="student_cohort_rel.enroll_at",
+        unit="people",
+        default_filters=[],
+    ),
+}
+
+
+DIMENSIONS = {
+    "campus": DimensionRequest(id="campus", name="校区", field="org_campus.campus_name", table_name="org_campus", column_name="campus_name", alias="campus"),
+    "series": DimensionRequest(id="series", name="课程系列", field="series.series_name", table_name="series", column_name="series_name", alias="series"),
+    "cohort": DimensionRequest(id="cohort", name="班次", field="series_cohort.cohort_name", table_name="series_cohort", column_name="cohort_name", alias="cohort"),
+    "channel": DimensionRequest(id="channel", name="渠道", field="dim_channel.channel_name", table_name="dim_channel", column_name="channel_name", alias="channel"),
+}
+
+
+def _query_plan(
+    *,
+    metric_id: str,
+    dimension_ids: list[str],
+    time_range: TimeWindow | None,
+    comparison: ComparisonSpec | None = None,
+    filters: list[FilterRequest] | None = None,
+    limit: int = 50,
+    output_shape: str = "bar",
+) -> QueryPlan:
+    metric = METRICS[metric_id]
+    dimensions = [DIMENSIONS[dimension_id] for dimension_id in dimension_ids]
+    raw_join_plan = build_join_plan(metric.base_table, [dimension.table_name for dimension in dimensions])
+    return QueryPlan(
+        metric=metric,
+        dimensions=dimensions,
+        filters=filters or [],
+        comparison=comparison,
+        join_plan=JoinPlan.model_validate(raw_join_plan),
+        time_range=time_range,
+        output_shape=output_shape,
+        limit=limit,
+    )
+
+
+def _plan_explain(plan: QueryPlan, sql: str, assumptions: list[str] | None = None) -> dict[str, Any]:
+    join_ids = [edge.get("join_id") for edge in plan.join_plan.edges if edge.get("join_id")]
+    columns = [
+        plan.metric.time_column or "",
+        *[dimension.field for dimension in plan.dimensions],
+        *plan.join_plan.columns,
+    ]
+    return {
+        "sql": sql,
+        "metrics": [{"id": plan.metric.id, "name": plan.metric.name, "unit": plan.metric.unit}],
+        "tables": plan.join_plan.tables,
+        "columns": list(dict.fromkeys([column for column in columns if column])),
+        "joins": join_ids,
+        "dimensions": [dimension.model_dump() for dimension in plan.dimensions],
+        "comparison": comparison_metadata(plan.comparison),
+        "joinPlan": plan.join_plan.model_dump(),
+        "assumptions": [*(assumptions or []), *plan.join_plan.warnings],
+    }
+
+
+def _multi_dimension_result(
+    question: str,
+    started_at: float,
+    *,
+    metric_id: str,
+    dimension_ids: list[str],
+    today: date,
+    title: str,
+    answer_prefix: str,
+    limit: int = 50,
+) -> dict[str, Any]:
+    plan = _query_plan(metric_id=metric_id, dimension_ids=dimension_ids, time_range=_current_month_window(today), limit=limit)
+    sql = build_aggregate_sql(plan)
+    rows = execute_select(sql)
+    visual = {
+        "type": "bar" if len(dimension_ids) <= 2 else "table",
+        "title": title,
+        "x": plan.dimensions[0].alias if plan.dimensions else None,
+        "y": [plan.metric.value_alias],
+        "columns": visual_columns_for_plan(plan),
+        "rows": rows,
+    }
+    return _base_result(
+        question=question,
+        started_at=started_at,
+        answer=f"{answer_prefix}已返回，共 {len(rows)} 条结果。",
+        intent={
+            "analysisType": "multi_dimension_aggregate",
+            "metrics": [metric_id],
+            "dimensions": dimension_ids,
+            "filters": [],
+            "timeRange": {"start": plan.time_range.start, "endExclusive": plan.time_range.endExclusive, "grain": "day", "label": plan.time_range.label},
+            "sort": [{"field": plan.metric.value_alias, "direction": "desc"}],
+            "limit": limit,
+            "visualHint": visual["type"],
+        },
+        visual=visual,
+        explain=_plan_explain(plan, sql),
+        row_count=len(rows),
+    )
+
+
+def _time_comparison_result(
+    question: str,
+    started_at: float,
+    *,
+    metric_id: str,
+    dimension_ids: list[str],
+    current: TimeWindow,
+    baseline: TimeWindow,
+    mode: str,
+    title: str,
+    answer_prefix: str,
+    limit: int = 50,
+) -> dict[str, Any]:
+    comparison = ComparisonSpec(kind="time_period", mode=mode, current=current, baseline=baseline, label=f"{current.label}对比{baseline.label}")
+    plan = _query_plan(metric_id=metric_id, dimension_ids=dimension_ids, time_range=None, comparison=comparison, limit=limit, output_shape="comparison")
+    sql = build_time_comparison_sql(plan)
+    raw_rows = execute_select(sql)
+    rows = reshape_time_comparison(
+        raw_rows,
+        dimension_aliases=[dimension.alias for dimension in plan.dimensions],
+        metric_alias=plan.metric.value_alias,
+        current_label=current.label,
+        baseline_label=baseline.label,
+    )
+    row = rows[0] if rows else {}
+    if dimension_ids:
+        answer = f"{answer_prefix}已返回，共 {len(rows)} 条结果。"
+    else:
+        answer = (
+            f"{answer_prefix}已返回：本期 {_format_money(row.get('current_value'))}，"
+            f"基期 {_format_money(row.get('baseline_value'))}，差值 {_format_money(row.get('delta'))}，"
+            f"变化率 {('无法计算' if row.get('delta_rate') is None else _format_percent(row.get('delta_rate')))}。"
+        )
+    visual = {
+        "type": "table" if dimension_ids else "stat",
+        "title": title,
+        "columns": visual_columns_for_plan(plan, comparison=True),
+        "rows": rows,
+        "comparison": comparison_metadata(comparison),
+    }
+    if dimension_ids:
+        visual["x"] = plan.dimensions[0].alias
+        visual["y"] = ["current_value", "baseline_value"]
+    return _base_result(
+        question=question,
+        started_at=started_at,
+        answer=answer,
+        intent={
+            "analysisType": "comparison",
+            "metrics": [metric_id],
+            "dimensions": dimension_ids,
+            "filters": [],
+            "comparison": comparison.model_dump(exclude_none=True),
+            "sort": [],
+            "limit": limit,
+            "visualHint": visual["type"],
+        },
+        visual=visual,
+        explain=_plan_explain(plan, sql, assumptions=["baseline 为 0 时 delta_rate 返回 null。"]),
+        row_count=len(rows),
+    )
+
+
+def _entity_comparison_result(question: str, started_at: float, today: date) -> dict[str, Any]:
+    values = ["朝阳校区", "北京朝阳校区", "徐汇校区", "上海徐汇校区"]
+    campus = DIMENSIONS["campus"]
+    comparison = ComparisonSpec(kind="entity", mode="dimension_values", dimension="campus", field=campus.field, values=values, label="校区对比")
+    plan = _query_plan(
+        metric_id="paid_revenue",
+        dimension_ids=["campus"],
+        time_range=_current_month_window(today),
+        comparison=comparison,
+        filters=[FilterRequest(field=campus.field, op="in", value=values, label="朝阳校区 vs 徐汇校区")],
+        limit=10,
+    )
+    sql = build_aggregate_sql(plan)
+    rows = execute_select(sql)
+    return _base_result(
+        question=question,
+        started_at=started_at,
+        answer=f"朝阳校区和徐汇校区本月收入对比已返回，共 {len(rows)} 条结果。",
+        intent={
+            "analysisType": "comparison",
+            "metrics": ["paid_revenue"],
+            "dimensions": ["campus"],
+            "filters": [{"field": campus.field, "op": "in", "value": values, "label": "朝阳校区 vs 徐汇校区"}],
+            "timeRange": {"start": plan.time_range.start, "endExclusive": plan.time_range.endExclusive, "grain": "day", "label": plan.time_range.label},
+            "comparison": comparison.model_dump(exclude_none=True),
+            "limit": 10,
+            "visualHint": "bar",
+        },
+        visual={
+            "type": "bar",
+            "title": "校区收入对比",
+            "x": "campus",
+            "y": ["paid_revenue"],
+            "columns": visual_columns_for_plan(plan),
+            "rows": rows,
+            "comparison": comparison_metadata(comparison),
+        },
+        explain=_plan_explain(plan, sql),
+        row_count=len(rows),
+    )
 
 
 def _course_series_revenue(question: str, started_at: float, today: date) -> dict[str, Any]:
@@ -400,6 +674,65 @@ def run_rule_based_data_qa(question: str, *, started_at: float, today: date | No
     today = today or date.today()
     normalized = question.replace(" ", "")
     try:
+        if "按校区和课程" in normalized and "收入" in normalized:
+            return _multi_dimension_result(
+                question,
+                started_at,
+                metric_id="paid_revenue",
+                dimension_ids=["campus", "series"],
+                today=today,
+                title="本月校区与课程收入",
+                answer_prefix="按校区和课程统计的本月收入",
+            )
+        if "校区" in normalized and "课程" in normalized and "渠道" in normalized and _contains_any(normalized, ("支付订单数", "订单数", "成交订单数")):
+            return _multi_dimension_result(
+                question,
+                started_at,
+                metric_id="paid_order_count",
+                dimension_ids=["campus", "series", "channel"],
+                today=today,
+                title="本月校区、课程与渠道支付订单数",
+                answer_prefix="按校区、课程、渠道统计的本月支付订单数",
+            )
+        if "本月" in normalized and "上月" in normalized and "收入" in normalized and _contains_any(normalized, ("增长", "对比", "比")):
+            return _time_comparison_result(
+                question,
+                started_at,
+                metric_id="paid_revenue",
+                dimension_ids=[],
+                current=_current_month_window(today),
+                baseline=_previous_month_window(today),
+                mode="month_over_month",
+                title="本月与上月收入对比",
+                answer_prefix="本月收入与上月对比",
+            )
+        if "最近30天" in normalized and "前30天" in normalized and "收入" in normalized:
+            current, baseline = _rolling_30_windows(today)
+            return _time_comparison_result(
+                question,
+                started_at,
+                metric_id="paid_revenue",
+                dimension_ids=[],
+                current=current,
+                baseline=baseline,
+                mode="rolling_previous_period",
+                title="最近30天与前30天收入对比",
+                answer_prefix="最近30天收入和前30天对比",
+            )
+        if "朝阳校区" in normalized and "徐汇校区" in normalized and "收入" in normalized and "对比" in normalized:
+            return _entity_comparison_result(question, started_at, today)
+        if "各校区" in normalized and "报名" in normalized and "本月" in normalized and "上月" in normalized and "对比" in normalized:
+            return _time_comparison_result(
+                question,
+                started_at,
+                metric_id="enrolled_student_count",
+                dimension_ids=["campus"],
+                current=_current_month_window(today),
+                baseline=_previous_month_window(today),
+                mode="month_over_month",
+                title="各校区本月与上月报名学员数对比",
+                answer_prefix="各校区本月报名人数和上月对比",
+            )
         if "续费" in normalized and "本周" in normalized and "上周" in normalized and _contains_any(normalized, ("对比", "比较", "差异")):
             return _renewal_week_comparison(question, started_at, today)
         if "退款率" in normalized and _contains_any(normalized, ("课程系列", "课程")) and _contains_any(normalized, ("最高", "排名", "最多")):
