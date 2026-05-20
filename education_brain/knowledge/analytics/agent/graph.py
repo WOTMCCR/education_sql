@@ -22,6 +22,7 @@ from knowledge.analytics.agent.nodes.core import (
     validate_sql_node,
 )
 from knowledge.analytics.agent.state import DataAgentState
+from knowledge.runtime.checkpointer import get_graph_checkpointer
 
 
 def _recall_fan_out(_: DataAgentState) -> list[str]:
@@ -67,4 +68,4 @@ def build_data_qa_graph() -> CompiledStateGraph:
     wf.add_edge("correct_sql", "execute_sql")
     wf.add_edge("execute_sql", END)
 
-    return wf.compile()
+    return wf.compile(checkpointer=get_graph_checkpointer())

@@ -106,7 +106,6 @@ def _llm_trace_update(stage: str, result: Any) -> dict[str, Any]:
     llm = result.stage.get("llm", {})
     return {
         "trace_stages": [result.stage],
-        "llm_raw_outputs": {stage: result.raw_response},
         "llm_usage": {stage: llm.get("usage") or {"usageUnavailable": True}},
     }
 

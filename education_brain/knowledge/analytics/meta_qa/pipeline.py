@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
-from knowledge.analytics.agent.llm_schema import parse_model
-from knowledge.analytics.agent.llm_utils import summarize_for_trace
 from knowledge.analytics.meta_store import (
     find_join_path,
     get_catalog_overview,
@@ -20,7 +18,9 @@ from knowledge.analytics.meta_store import (
 from knowledge.analytics.search import search_columns, search_metrics, search_values
 from knowledge.core import llm as core_llm
 from knowledge.core.config import get_settings
+from knowledge.core.structured_llm import StructuredLlmClient
 from knowledge.models.chat import MetaCitation, MetaQaResponse
+from knowledge.runtime import make_thread_id, run_graph
 
 
 PROMPT_PATH = Path(__file__).resolve().parent / "prompts" / "meta_qa_answer.md"
@@ -241,10 +241,6 @@ def _build_context(question: str) -> tuple[dict[str, Any], dict[tuple[str, str],
     return context, allowed
 
 
-def _prompt_hash(prompt: str) -> str:
-    return hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:16]
-
-
 def _error_response(question: str, *, code: str, message: str, started: float, stage: dict[str, Any]) -> dict[str, Any]:
     return {
         "ok": False,
@@ -260,6 +256,10 @@ def _error_response(question: str, *, code: str, message: str, started: float, s
         "error": {"stage": "meta_qa", "code": code, "message": message},
         "question": question,
     }
+
+
+def _prompt_hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
 
 
 def _requires_data_qa_response(question: str, *, started: float) -> dict[str, Any]:
@@ -289,92 +289,32 @@ def _requires_data_qa_response(question: str, *, started: float) -> dict[str, An
 
 
 def _call_meta_llm(question: str, context: dict[str, Any], allowed: dict[tuple[str, str], dict[str, str]], started: float) -> dict[str, Any]:
-    settings = get_settings()
-    prompt = PROMPT_PATH.read_text(encoding="utf-8")
-    stage_started = time.perf_counter()
-
-    if not settings.openai_api_key or not settings.llm_model:
-        stage = {
-            "name": "meta_qa_llm",
-            "status": "error",
-            "durationMs": round((time.perf_counter() - stage_started) * 1000),
-            "llm_called": False,
-            "promptName": PROMPT_PATH.name,
-            "promptHash": _prompt_hash(prompt),
-            "usage": {"usageUnavailable": True},
-            "message": "Meta QA 需要配置 OPENAI_API_KEY 和 LLM_MODEL。",
-        }
-        return _error_response(
-            question,
-            code="META_QA_UNAVAILABLE",
-            message="数据说明暂时不可用：LLM 未配置。",
-            started=started,
-            stage=stage,
-        )
-
     user_payload = {
         "question": question,
         "context": context,
         "allowedCitationKeys": [{"kind": kind, "id": entity_id} for kind, entity_id in allowed],
     }
-    messages = [
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False, default=str)},
-    ]
-    result = core_llm.chat_completion_text(
-        model=settings.llm_model,
-        messages=messages,
-        purpose="analytics.meta_qa",
-        temperature=0.0,
+    llm_result = StructuredLlmClient(prompt_dir=PROMPT_PATH.parent, settings=get_settings()).invoke_schema(
+        stage="meta_qa_llm",
+        prompt_name=PROMPT_PATH.stem,
+        response_model=MetaQaResponse,
+        payload=user_payload,
         max_tokens=1200,
         timeout=45.0,
-        trigger_cooldown=False,
-        response_format={"type": "json_object"},
-        return_metadata=True,
+        purpose="analytics.meta_qa",
     )
-    if result is None:
-        stage = {
-            "name": "meta_qa_llm",
-            "status": "error",
-            "durationMs": round((time.perf_counter() - stage_started) * 1000),
-            "llm_called": True,
-            "promptName": PROMPT_PATH.name,
-            "promptHash": _prompt_hash(prompt),
-            "inputSummary": summarize_for_trace({k: len(v) if isinstance(v, list) else v for k, v in context.items()}),
-            "usage": {"usageUnavailable": True},
-            "message": "LLM 返回空内容或调用失败。",
-        }
+    if llm_result.error:
+        stage = {**llm_result.trace.as_stage(), "promptHash": _prompt_hash(PROMPT_PATH), "message": llm_result.error["message"]}
+        unavailable = llm_result.error["code"] == "LLM_UNAVAILABLE"
         return _error_response(
             question,
-            code="META_QA_UNAVAILABLE",
-            message="数据说明暂时不可用：LLM 调用失败。",
+            code="META_QA_UNAVAILABLE" if unavailable else "META_QA_OUTPUT_INVALID",
+            message="数据说明暂时不可用：LLM 调用失败。" if unavailable else "数据说明暂时不可用：LLM 输出结构无效。",
             started=started,
             stage=stage,
         )
 
-    raw = result.text if isinstance(result, core_llm.ChatCompletionTextResult) else str(result)
-    usage = result.usage if isinstance(result, core_llm.ChatCompletionTextResult) else {"usageUnavailable": True}
-    try:
-        parsed = parse_model(raw, MetaQaResponse)
-    except ValueError as e:
-        stage = {
-            "name": "meta_qa_llm",
-            "status": "error",
-            "durationMs": round((time.perf_counter() - stage_started) * 1000),
-            "llm_called": True,
-            "promptName": PROMPT_PATH.name,
-            "promptHash": _prompt_hash(prompt),
-            "usage": usage or {"usageUnavailable": True},
-            "message": str(e),
-        }
-        return _error_response(
-            question,
-            code="META_QA_OUTPUT_INVALID",
-            message="数据说明暂时不可用：LLM 输出结构无效。",
-            started=started,
-            stage=stage,
-        )
-
+    parsed = llm_result.parsed
     assert isinstance(parsed, MetaQaResponse)
     citations: list[dict[str, str]] = []
     for citation in parsed.citations:
@@ -385,12 +325,8 @@ def _call_meta_llm(question: str, context: dict[str, Any], allowed: dict[tuple[s
         citations = list(allowed.values())[:3]
 
     stage = {
-        "name": "meta_qa_llm",
-        "status": "ok",
-        "durationMs": round((time.perf_counter() - stage_started) * 1000),
-        "llm_called": True,
-        "promptName": PROMPT_PATH.name,
-        "promptHash": _prompt_hash(prompt),
+        **llm_result.trace.as_stage(),
+        "promptHash": _prompt_hash(PROMPT_PATH),
         "inputSummary": {
             "metrics": len(context.get("metrics") or []),
             "columns": len(context.get("columns") or []),
@@ -405,7 +341,6 @@ def _call_meta_llm(question: str, context: dict[str, Any], allowed: dict[tuple[s
             "unsupportedReason": parsed.unsupported_reason,
             "suggestedMode": parsed.suggested_mode,
         },
-        "usage": usage or {"usageUnavailable": True},
     }
     answer = parsed.answer_markdown
     return {
@@ -427,7 +362,7 @@ def _call_meta_llm(question: str, context: dict[str, Any], allowed: dict[tuple[s
     }
 
 
-def run_meta_qa(question: str, session_id: str | None = None) -> dict[str, Any]:
+def _run_meta_qa_direct(question: str, session_id: str | None = None) -> dict[str, Any]:
     del session_id
     started = time.perf_counter()
     if _is_catalog_overview_question(question):
@@ -436,3 +371,30 @@ def run_meta_qa(question: str, session_id: str | None = None) -> dict[str, Any]:
         return _requires_data_qa_response(question, started=started)
     context, allowed = _build_context(question)
     return _call_meta_llm(question, context, allowed, started)
+
+
+def run_meta_qa(question: str, session_id: str | None = None, task_id: str | None = None) -> dict[str, Any]:
+    from knowledge.analytics.meta_qa.graph import build_meta_qa_graph
+
+    started = time.perf_counter()
+    task_id = task_id or f"run_{uuid.uuid4().hex[:12]}"
+    graph_run = run_graph(
+        build_meta_qa_graph(),
+        graph_name="meta_qa",
+        thread_id=make_thread_id(graph_name="meta_qa", session_id=session_id, task_id=task_id),
+        input_state={
+            "question": question,
+            "session_id": session_id,
+            "trace_stages": [],
+            "started_at": started,
+        },
+    )
+    result = graph_run.state.get("result") or _error_response(
+        question,
+        code="META_QA_GRAPH_EMPTY",
+        message="数据说明暂时不可用：graph 未返回结果。",
+        started=started,
+        stage={"name": "meta_qa_graph", "status": "error", "durationMs": 0},
+    )
+    result["trace"] = {**(result.get("trace") or {}), **graph_run.trace}
+    return result

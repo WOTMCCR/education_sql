@@ -75,6 +75,11 @@ class Settings(BaseSettings):
 
     embedding_dim: int = 1024
 
+    # ── LangGraph runtime ──
+    graph_checkpoint_backend: str = "memory"
+    graph_checkpoint_ttl_seconds: int = 86400
+    graph_checkpoint_db: str = ""
+
 
     @field_validator("debug", mode="before")
     @classmethod

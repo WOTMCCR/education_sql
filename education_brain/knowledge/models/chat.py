@@ -52,6 +52,9 @@ class ChatResponse(BaseModel):
     citations: list[dict] = Field(default_factory=list)
     blocks: list[dict] | None = None
     trace: dict | None = None
+    thread_id: str = ""
+    checkpoint_id: str = ""
+    graph_name: str = ""
 
 
 class ChatMessage(BaseModel):
@@ -70,4 +73,8 @@ class ChatMessage(BaseModel):
     blocks: list[dict] | None = None
     trace: dict | None = None
     intent: str = ""
+    thread_id: str = ""
+    checkpoint_id: str = ""
+    graph_name: str = ""
+    graph_run_id: str = ""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

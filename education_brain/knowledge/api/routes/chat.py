@@ -1,6 +1,7 @@
 """聊天接口。"""
 
 import asyncio
+import inspect
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
@@ -8,6 +9,8 @@ from fastapi import APIRouter, HTTPException, Query
 from knowledge.analytics.agent import run_data_qa
 from knowledge.analytics.meta_qa import run_meta_qa
 from knowledge.models.chat import ChatMessage, ChatRequest, ChatResponse
+from knowledge.runtime import make_thread_id
+from knowledge.runtime.result_projector import to_chat_response
 from knowledge.service.chat_history import get_recent_messages, save_message
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -47,22 +50,22 @@ def _resolve_chat_mode(requested_mode: str, query: str) -> str:
     return requested_mode
 
 
-def _data_qa_blocks(result: dict) -> list[dict]:
-    answer = result.get("answer") or ""
-    return [
-        {"type": "markdown", "content": answer},
-        {"type": "data_qa_result", "data": result},
-    ]
+def _graph_metadata(trace: dict | None, *, mode: str, session_id: str, task_id: str) -> dict[str, str]:
+    graph = (trace or {}).get("graph") or {}
+    thread_id = graph.get("threadId") or make_thread_id(graph_name=mode, session_id=session_id, task_id=task_id)
+    return {
+        "thread_id": thread_id,
+        "checkpoint_id": graph.get("checkpointId") or "",
+        "graph_name": graph.get("name") or mode,
+        "graph_run_id": task_id,
+    }
 
 
-def _meta_qa_blocks(result: dict) -> list[dict]:
-    blocks = result.get("blocks")
-    if isinstance(blocks, list):
-        return blocks
-    return [
-        {"type": "markdown", "content": result.get("answer") or ""},
-        {"type": "meta_citations", "data": result.get("citations") or []},
-    ]
+def _run_pipeline(fn, query: str, session_id: str, task_id: str):
+    signature = inspect.signature(fn)
+    if "task_id" in signature.parameters:
+        return fn(query, session_id, task_id)
+    return fn(query, session_id)
 
 
 @router.post("/query", response_model=ChatResponse)
@@ -88,36 +91,22 @@ async def chat_query(req: ChatRequest):
             answer=req.query,
             intent=mode,
             mode=mode,
+            **_graph_metadata(None, mode=mode, session_id=session_id, task_id=task_id),
         ),
     )
 
     if mode == "data_qa":
-        result = await asyncio.to_thread(run_data_qa, req.query, session_id)
-        answer = result.get("answer") or ""
-        blocks = _data_qa_blocks(result)
-        result_type = "data_qa_result"
-        citations: list[dict] = []
-        trace = None
+        result = await asyncio.to_thread(_run_pipeline, run_data_qa, req.query, session_id, task_id)
     else:
-        result = await asyncio.to_thread(run_meta_qa, req.query, session_id)
-        answer = result.get("answer") or ""
-        blocks = _meta_qa_blocks(result)
-        result_type = result.get("result_type") or "meta_answer"
-        citations = result.get("citations") or []
-        trace = result.get("trace")
+        result = await asyncio.to_thread(_run_pipeline, run_meta_qa, req.query, session_id, task_id)
 
-    response = ChatResponse(
-        task_id=task_id,
-        intent=mode,
-        result_type=result_type,
-        mode=mode,
-        items=[],
-        summary=answer,
-        answer=answer,
-        citations=citations,
-        blocks=blocks,
-        trace=trace,
-    )
+    trace = result.get("trace")
+    response = to_chat_response(task_id=task_id, mode=mode, result=result, trace=trace)
+    graph_meta = _graph_metadata(response.trace, mode=mode, session_id=session_id, task_id=task_id)
+    response.thread_id = graph_meta["thread_id"]
+    response.checkpoint_id = graph_meta["checkpoint_id"]
+    response.graph_name = graph_meta["graph_name"]
+
 
     await asyncio.to_thread(
         save_message,
@@ -129,6 +118,7 @@ async def chat_query(req: ChatRequest):
             citations=response.citations, intent=response.intent,
             mode=response.mode, blocks=response.blocks,
             trace=response.trace,
+            **graph_meta,
         ),
     )
 
